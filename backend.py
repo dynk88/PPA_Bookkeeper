@@ -119,10 +119,10 @@ class BookkeepingSystem:
         final_total = current_spent + batch_total
         if final_total > limit:
             remaining = limit - current_spent
-            # STANDARD ERROR MESSAGE
             msg = (
                 "Transaction Rejected: Limit Exceeded\n\n"
                 f"Approved Limit:      {self._fmt_money(limit)}\n"
+                f"Previously Spent:    {self._fmt_money(current_spent)}\n"
                 f"Current Batch:       {self._fmt_money(batch_total)}\n"
                 "----------------------------------------\n"
                 f"Total Required:      {self._fmt_money(final_total)}\n"
@@ -195,3 +195,43 @@ class BookkeepingSystem:
 
     def create_word_advice(self, subsidiary, date_str, transaction_list):
         return generate_payment_advice(subsidiary, date_str, transaction_list)
+
+    # --- NEW FUNCTION FOR SEARCHING ---
+    def search_transactions(self, subsidiary=None, ppa_text=None):
+        """
+        Scans all columns in Transactions sheet.
+        Returns list of tuples: (Subsidiary, PPA, Date, Amount)
+        """
+        try:
+            wb = openpyxl.load_workbook(FILE_NAME, data_only=True)
+            ws = wb[SHEET_TXN]
+        except:
+            return []
+
+        results = []
+        
+        # Iterate over subsidiary columns (Steps of 3: 1, 4, 7...)
+        for col in range(1, ws.max_column + 1, 3):
+            sub_name = ws.cell(row=1, column=col).value
+            if not sub_name: continue
+            
+            # Filter by Subsidiary if requested
+            if subsidiary and subsidiary != "All Companies" and sub_name != subsidiary:
+                continue
+                
+            # Read rows
+            for row in range(3, ws.max_row + 1):
+                ppa = ws.cell(row=row, column=col).value
+                date_val = ws.cell(row=row, column=col+1).value
+                amt = ws.cell(row=row, column=col+2).value
+                
+                if not ppa: continue # Empty row
+                
+                # Filter by PPA if requested
+                if ppa_text:
+                    if str(ppa_text).upper() not in str(ppa).upper():
+                        continue
+                
+                results.append((sub_name, str(ppa), date_val, amt))
+        
+        return results
