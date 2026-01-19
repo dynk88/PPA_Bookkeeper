@@ -4,13 +4,13 @@ from tkcalendar import DateEntry
 import os 
 from datetime import datetime
 from backend import BookkeepingSystem
-from num2words import num2words # Requires: pip install num2words
+from num2words import num2words 
 
 class App:
     def __init__(self, root):
         self.root = root
         self.root.title("Subsidiary Bookkeeper")
-        self.center_window(950, 650) # Increased height slightly for new label
+        self.center_window(950, 650) 
         
         self.system = BookkeepingSystem()
         self.is_session_saved = False
@@ -83,39 +83,37 @@ class App:
         self.sub_combo['values'] = self.system.get_subsidiaries()
         self.sub_combo.pack(fill="x", pady=(5, 15))
 
-        # PPA SECTION
+        # PPA SECTION (Modified)
         ppa_frame = tk.Frame(left_panel, bg="#f4f4f4")
         ppa_frame.pack(fill="x", pady=(5, 15))
+        
+        # 1. Status Label
         self.lbl_ppa = tk.Label(ppa_frame, text="PPA Number (0/13):", bg="#f4f4f4", font=("Segoe UI", 10))
         self.lbl_ppa.pack(anchor="w")
 
-        entry_container = tk.Frame(ppa_frame, bg="#f4f4f4")
-        entry_container.pack(fill="x")
-
+        # 2. Entry Field
         self.ppa_var = tk.StringVar()
         self.ppa_var.trace_add('write', self.on_ppa_change) 
         
-        self.ppa_entry = tk.Entry(entry_container, textvariable=self.ppa_var, font=("Segoe UI", 11))
-        self.ppa_entry.pack(side="left", fill="x", expand=True)
-        self.ppa_entry.bind("<KeyRelease>", self.show_key_feedback)
+        self.ppa_entry = tk.Entry(ppa_frame, textvariable=self.ppa_var, font=("Consolas", 14))
+        self.ppa_entry.pack(fill="x", pady=(2, 0))
 
-        self.lbl_key_popup = tk.Label(entry_container, text="", bg="#ddd", fg="blue", font=("Arial", 14, "bold"), width=3)
-        self.lbl_key_popup.pack(side="right", padx=5)
+        # 3. Large Preview Label
+        self.lbl_ppa_preview = tk.Label(ppa_frame, text="", bg="#f4f4f4", fg="#0078D7", 
+                                        font=("Segoe UI", 16, "bold"))
+        self.lbl_ppa_preview.pack(anchor="w")
 
         # Amount
         tk.Label(left_panel, text="Amount (₹):", bg="#f4f4f4", font=("Segoe UI", 10)).pack(anchor="w")
         vcmd = (self.root.register(self.validate_amount), '%P')
         self.amount_entry = tk.Entry(left_panel, font=("Segoe UI", 11), validate="key", validatecommand=vcmd)
-        self.amount_entry.pack(fill="x", pady=(5, 2)) # Reduced padding
+        self.amount_entry.pack(fill="x", pady=(5, 2))
 
-        # NEW: Amount in Words Label
+        # Amount in Words Label
         self.lbl_amt_words = tk.Label(left_panel, text="", bg="#f4f4f4", fg="#666", 
                                       font=("Segoe UI", 9, "italic"), wraplength=350, justify="left")
         self.lbl_amt_words.pack(anchor="w", pady=(0, 15))
-        
-        # Bind event to update words
         self.amount_entry.bind("<KeyRelease>", self.update_amount_words)
-
 
         # Date
         tk.Label(left_panel, text="Date:", bg="#f4f4f4", font=("Segoe UI", 10)).pack(anchor="w")
@@ -188,9 +186,7 @@ class App:
         
         try:
             amt = int(val)
-            # Use 'en_IN' for Indian Numbering (Lakh/Crore)
             words = num2words(amt, lang='en_IN')
-            # Clean up formatting
             clean_text = f"{words} Rupees Only".title().replace("-", " ")
             self.lbl_amt_words.config(text=clean_text)
         except:
@@ -225,7 +221,6 @@ class App:
         raw_amt = self.parse_currency(values[2])
         self.amount_entry.delete(0, tk.END)
         self.amount_entry.insert(0, str(raw_amt))
-        # Trigger word update manually after loading
         self.update_amount_words(None)
         self.date_entry.set_date(values[3])
         self.editing_item_iid = iid
@@ -238,7 +233,7 @@ class App:
         self.btn_cancel_edit.pack_forget()
         self.ppa_var.set("")
         self.amount_entry.delete(0, tk.END)
-        self.lbl_amt_words.config(text="") # Clear words
+        self.lbl_amt_words.config(text="")
 
     def submit_data(self):
         sub = self.sub_var.get()
@@ -249,9 +244,17 @@ class App:
         if not sub:
             messagebox.showwarning("Error", "Select a Subsidiary")
             return
-        if not ppa or len(ppa) != 13:
-            messagebox.showwarning("Error", "PPA must be 13 characters")
+        # VALIDATION LOGIC UPDATED
+        if not ppa:
+            messagebox.showwarning("Error", "PPA Number is empty.")
             return
+        if not ppa.isalnum():
+            messagebox.showwarning("Error", "PPA Number must contain only Letters and Numbers (No spaces or symbols).")
+            return
+        if len(ppa) != 13:
+            messagebox.showwarning("Error", "PPA must be exactly 13 characters.")
+            return
+            
         if not amt_str:
             messagebox.showwarning("Error", "Enter Amount")
             return
@@ -274,15 +277,8 @@ class App:
             self.lbl_sub.config(text="Subsidiary Company (Locked for Session):", fg="gray")
             self.ppa_var.set("") 
             self.amount_entry.delete(0, tk.END)
-            self.lbl_key_popup.config(text="") 
             self.lbl_amt_words.config(text="")
-
-    def show_key_feedback(self, event):
-        char = event.char
-        if char and char.isalnum():
-            self.lbl_key_popup.config(text=char.upper(), fg="blue")
-        elif event.keysym == "BackSpace":
-             self.lbl_key_popup.config(text="⌫", fg="red")
+            # Preview label clears automatically
 
     def restart_session(self):
         for item in self.tree_session.get_children():
@@ -293,7 +289,6 @@ class App:
         self.sub_var.set("")
         self.ppa_var.set("")
         self.amount_entry.delete(0, tk.END)
-        self.lbl_key_popup.config(text="") 
         self.lbl_amt_words.config(text="")
         self.is_session_saved = False
         self.btn_submit.config(state="normal", bg="#0078D7")
@@ -349,13 +344,27 @@ class App:
         if val != upper_val:
             self.ppa_var.set(upper_val)
             return
+        
         count = len(upper_val)
-        if count == 13:
-            self.lbl_ppa.config(text=f"PPA Number (Perfect: 13):", fg="green")
+        is_alnum = upper_val.isalnum()
+        
+        # 1. Update Status Label
+        if count > 0 and not is_alnum:
+            self.lbl_ppa.config(text="Error: Letters & Numbers only!", fg="red")
+            self.lbl_ppa_preview.config(fg="red")
         elif count > 13:
             self.lbl_ppa.config(text=f"PPA Number (Too Long! {count}/13):", fg="red")
+            self.lbl_ppa_preview.config(fg="red")
+        elif count == 13:
+            self.lbl_ppa.config(text=f"PPA Number (Perfect: 13):", fg="green")
+            self.lbl_ppa_preview.config(fg="green")
         else:
             self.lbl_ppa.config(text=f"PPA Number ({count}/13 chars):", fg="black")
+            self.lbl_ppa_preview.config(fg="#0078D7")
+
+        # 2. Update Visual Preview
+        spaced_text = " ".join(list(upper_val))
+        self.lbl_ppa_preview.config(text=spaced_text)
 
     def validate_amount(self, P):
         if P == "" or P.isdigit(): return True
