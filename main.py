@@ -4,17 +4,16 @@ from tkcalendar import DateEntry
 import os 
 from datetime import datetime
 from backend import BookkeepingSystem
+from num2words import num2words # Requires: pip install num2words
 
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("PPA Bookkeeper by D.Nikang")
-        self.center_window(950, 600)
+        self.root.title("Subsidiary Bookkeeper")
+        self.center_window(950, 650) # Increased height slightly for new label
         
         self.system = BookkeepingSystem()
         self.is_session_saved = False
-        
-        # Track editing state
         self.editing_item_iid = None 
 
         # STYLING
@@ -77,7 +76,7 @@ class App:
         btn_restart.pack(side="right")
 
         # Subsidiary
-        self.lbl_sub = tk.Label(left_panel, text="Department:", bg="#f4f4f4", font=("Segoe UI", 10))
+        self.lbl_sub = tk.Label(left_panel, text="Subsidiary Company:", bg="#f4f4f4", font=("Segoe UI", 10))
         self.lbl_sub.pack(anchor="w")
         self.sub_var = tk.StringVar()
         self.sub_combo = ttk.Combobox(left_panel, textvariable=self.sub_var, state="readonly", font=("Segoe UI", 11))
@@ -107,7 +106,16 @@ class App:
         tk.Label(left_panel, text="Amount (₹):", bg="#f4f4f4", font=("Segoe UI", 10)).pack(anchor="w")
         vcmd = (self.root.register(self.validate_amount), '%P')
         self.amount_entry = tk.Entry(left_panel, font=("Segoe UI", 11), validate="key", validatecommand=vcmd)
-        self.amount_entry.pack(fill="x", pady=(5, 15))
+        self.amount_entry.pack(fill="x", pady=(5, 2)) # Reduced padding
+
+        # NEW: Amount in Words Label
+        self.lbl_amt_words = tk.Label(left_panel, text="", bg="#f4f4f4", fg="#666", 
+                                      font=("Segoe UI", 9, "italic"), wraplength=350, justify="left")
+        self.lbl_amt_words.pack(anchor="w", pady=(0, 15))
+        
+        # Bind event to update words
+        self.amount_entry.bind("<KeyRelease>", self.update_amount_words)
+
 
         # Date
         tk.Label(left_panel, text="Date:", bg="#f4f4f4", font=("Segoe UI", 10)).pack(anchor="w")
@@ -135,7 +143,6 @@ class App:
         
         tk.Label(right_header, text="Session Preview", font=("Segoe UI", 12, "bold"), bg="white").pack(side="left")
         
-        # Context Menu Tip (Updated Text)
         tk.Label(right_panel, text="Tip: Right-click row to Edit or Delete", 
                  font=("Segoe UI", 9, "italic"), fg="gray", bg="white").pack(anchor="w")
 
@@ -152,7 +159,7 @@ class App:
 
         columns = ("sub", "ppa", "amt", "date")
         self.tree_session = ttk.Treeview(right_panel, columns=columns, show="headings")
-        self.tree_session.heading("sub", text="Department")
+        self.tree_session.heading("sub", text="Subsidiary")
         self.tree_session.heading("ppa", text="PPA")
         self.tree_session.heading("amt", text="Amount")
         self.tree_session.heading("date", text="Date")
@@ -164,22 +171,33 @@ class App:
 
         self.tree_session.pack(fill="both", expand=True)
 
-        # --- BINDINGS ---
-        # REMOVED Double-Click Binding
-        self.tree_session.bind("<Button-3>", self.show_context_menu) # Right Click
+        self.tree_session.bind("<Button-3>", self.show_context_menu) 
         
         self.context_menu = Menu(self.root, tearoff=0)
         self.context_menu.add_command(label="Modify Entry", command=self.on_modify_context)
         self.context_menu.add_command(label="Delete Entry", command=self.delete_selected_row)
 
     # ==========================================
-    # EDIT / DELETE LOGIC
+    # LOGIC
     # ==========================================
-    def show_context_menu(self, event):
-        # DISABLE IF SAVED
-        if self.is_session_saved:
-            return 
+    def update_amount_words(self, event):
+        val = self.amount_entry.get()
+        if not val:
+            self.lbl_amt_words.config(text="")
+            return
+        
+        try:
+            amt = int(val)
+            # Use 'en_IN' for Indian Numbering (Lakh/Crore)
+            words = num2words(amt, lang='en_IN')
+            # Clean up formatting
+            clean_text = f"{words} Rupees Only".title().replace("-", " ")
+            self.lbl_amt_words.config(text=clean_text)
+        except:
+            self.lbl_amt_words.config(text="")
 
+    def show_context_menu(self, event):
+        if self.is_session_saved: return 
         item = self.tree_session.identify_row(event.y)
         if item:
             self.tree_session.selection_set(item)
@@ -188,12 +206,10 @@ class App:
     def delete_selected_row(self):
         selected = self.tree_session.selection()
         if not selected: return
-        
         self.tree_session.delete(selected[0])
-        
         if not self.tree_session.get_children():
             self.sub_combo.config(state="readonly")
-            self.lbl_sub.config(text="Department:", fg="black")
+            self.lbl_sub.config(text="Subsidiary Company:", fg="black")
             self.cancel_edit()
 
     def on_modify_context(self):
@@ -202,19 +218,16 @@ class App:
     def load_item_for_editing(self):
         selected = self.tree_session.selection()
         if not selected: return
-        
         iid = selected[0]
         values = self.tree_session.item(iid)['values']
-        
         self.sub_var.set(values[0])
         self.ppa_var.set(values[1])
-        
         raw_amt = self.parse_currency(values[2])
         self.amount_entry.delete(0, tk.END)
         self.amount_entry.insert(0, str(raw_amt))
-        
+        # Trigger word update manually after loading
+        self.update_amount_words(None)
         self.date_entry.set_date(values[3])
-
         self.editing_item_iid = iid
         self.btn_submit.config(text="Update Entry", bg="#E67E22") 
         self.btn_cancel_edit.pack(pady=5) 
@@ -223,9 +236,9 @@ class App:
         self.editing_item_iid = None
         self.btn_submit.config(text="Submit PPA (To Preview)", bg="#0078D7")
         self.btn_cancel_edit.pack_forget()
-        
         self.ppa_var.set("")
         self.amount_entry.delete(0, tk.END)
+        self.lbl_amt_words.config(text="") # Clear words
 
     def submit_data(self):
         sub = self.sub_var.get()
@@ -234,7 +247,7 @@ class App:
         date_obj = self.date_entry.get_date() 
 
         if not sub:
-            messagebox.showwarning("Error", "Select a Department")
+            messagebox.showwarning("Error", "Select a Subsidiary")
             return
         if not ppa or len(ppa) != 13:
             messagebox.showwarning("Error", "PPA must be 13 characters")
@@ -258,14 +271,12 @@ class App:
         else:
             self.tree_session.insert("", 0, values=(sub, ppa, display_amt, display_date))
             self.sub_combo.config(state="disabled")
-            self.lbl_sub.config(text="Department (Locked for Session):", fg="gray")
+            self.lbl_sub.config(text="Subsidiary Company (Locked for Session):", fg="gray")
             self.ppa_var.set("") 
             self.amount_entry.delete(0, tk.END)
             self.lbl_key_popup.config(text="") 
+            self.lbl_amt_words.config(text="")
 
-    # ==========================================
-    # STANDARD LOGIC
-    # ==========================================
     def show_key_feedback(self, event):
         char = event.char
         if char and char.isalnum():
@@ -276,16 +287,14 @@ class App:
     def restart_session(self):
         for item in self.tree_session.get_children():
             self.tree_session.delete(item)
-            
         self.sub_combo.config(state="readonly")
-        self.lbl_sub.config(text="Department:", fg="black")
-        
+        self.lbl_sub.config(text="Subsidiary Company:", fg="black")
         self.cancel_edit() 
         self.sub_var.set("")
         self.ppa_var.set("")
         self.amount_entry.delete(0, tk.END)
         self.lbl_key_popup.config(text="") 
-        
+        self.lbl_amt_words.config(text="")
         self.is_session_saved = False
         self.btn_submit.config(state="normal", bg="#0078D7")
         self.btn_validate.config(state="normal", bg="#d63384")
@@ -296,22 +305,17 @@ class App:
         if not children:
             messagebox.showwarning("Validation", "No transactions to validate.")
             return
-        
         batch_list = []
         target_sub = None
-        
         for child in children:
             row = self.tree_session.item(child)['values']
             sub = row[0]
             if target_sub is None: target_sub = sub
-            
             ppa = row[1]
             amt = self.parse_currency(row[2])
             dt_obj = datetime.strptime(row[3], "%d-%m-%Y").date()
             batch_list.append((ppa, dt_obj, amt))
-            
         success, msg = self.system.save_batch(target_sub, batch_list)
-        
         if success:
             messagebox.showinfo("Success", "Data validated and saved to Excel successfully.")
             self.is_session_saved = True
@@ -325,16 +329,13 @@ class App:
     def export_word(self):
         children = self.tree_session.get_children()
         if not children: return
-
         first_row = self.tree_session.item(children[0])['values']
         target_sub = first_row[0]
         ref_date = first_row[3]
-
         batch_transactions = []
         for child in children:
             row = self.tree_session.item(child)['values']
             batch_transactions.append((row[1], row[2]))
-
         success, result = self.system.create_word_advice(target_sub, ref_date, batch_transactions)
         if success:
             try: os.startfile(result)
@@ -385,7 +386,7 @@ class App:
         content_frame.pack(fill="both", expand=True)
         columns = ("sub", "limit", "spent", "bal")
         self.tree_summary = ttk.Treeview(content_frame, columns=columns, show="headings")
-        self.tree_summary.heading("sub", text="Department")
+        self.tree_summary.heading("sub", text="Subsidiary Company")
         self.tree_summary.heading("limit", text="Approved Limit")
         self.tree_summary.heading("spent", text="Total Disbursed")
         self.tree_summary.heading("bal", text="Remaining Balance")
