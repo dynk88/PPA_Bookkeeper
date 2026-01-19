@@ -9,7 +9,7 @@ from num2words import num2words
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Department Bookkeeper") # Title updated
+        self.root.title("Department Bookkeeper") 
         self.center_window(1000, 650) 
         
         self.system = BookkeepingSystem()
@@ -21,6 +21,17 @@ class App:
         style.configure("Treeview.Heading", font=('Segoe UI', 10, 'bold'))
         style.configure("Treeview", font=('Segoe UI', 10), rowheight=28)
         
+        # --- FOOTER (Developed By) ---
+        # We pack this first with side="bottom" so it sticks to the bottom
+        footer_frame = tk.Frame(self.root, bg="#f0f0f0", height=20)
+        footer_frame.pack(side="bottom", fill="x")
+        
+        lbl_dev = tk.Label(footer_frame, text="Developed by D.N", 
+                           font=("Segoe UI", 8), fg="gray", bg="#f0f0f0")
+        lbl_dev.pack(side="right", padx=10, pady=2)
+        # -----------------------------
+
+        # MAIN CONTAINER
         self.container = tk.Frame(self.root)
         self.container.pack(fill="both", expand=True)
 
@@ -78,7 +89,7 @@ class App:
                                 bg="#e0a800", fg="white", font=("Segoe UI", 9, "bold"), cursor="hand2")
         btn_restart.pack(side="right")
 
-        # Department (Changed Label)
+        # Department
         self.lbl_sub = tk.Label(left_panel, text="Department:", bg="#f4f4f4", font=("Segoe UI", 10))
         self.lbl_sub.pack(anchor="w")
         self.sub_var = tk.StringVar()
@@ -161,7 +172,7 @@ class App:
 
         columns = ("sub", "ppa", "amt", "date")
         self.tree_session = ttk.Treeview(right_panel, columns=columns, show="headings")
-        self.tree_session.heading("sub", text="Department") # Changed
+        self.tree_session.heading("sub", text="Department")
         self.tree_session.heading("ppa", text="PPA")
         self.tree_session.heading("amt", text="Amount")
         self.tree_session.heading("date", text="Date")
@@ -187,10 +198,9 @@ class App:
 
         filter_frame = tk.Frame(self.frame_history, bg="#ECF0F1", padx=20, pady=10)
         filter_frame.pack(fill="x")
-        tk.Label(filter_frame, text="Filter Department:", bg="#ECF0F1").pack(side="left", padx=5) # Changed
+        tk.Label(filter_frame, text="Filter Department:", bg="#ECF0F1").pack(side="left", padx=5) 
         self.hist_sub_var = tk.StringVar()
         self.hist_sub_combo = ttk.Combobox(filter_frame, textvariable=self.hist_sub_var, state="readonly", width=30)
-        # Changed Option:
         subs = ["All Departments"] + self.system.get_subsidiaries()
         self.hist_sub_combo['values'] = subs
         self.hist_sub_combo.current(0)
@@ -205,7 +215,7 @@ class App:
         content_frame.pack(fill="both", expand=True)
         columns = ("sub", "ppa", "date", "amt")
         self.tree_history = ttk.Treeview(content_frame, columns=columns, show="headings")
-        self.tree_history.heading("sub", text="Department") # Changed
+        self.tree_history.heading("sub", text="Department")
         self.tree_history.heading("ppa", text="PPA Number")
         self.tree_history.heading("date", text="Date")
         self.tree_history.heading("amt", text="Amount")
@@ -231,21 +241,21 @@ class App:
 
     # ==================== SUMMARY VIEW ====================
     def setup_summary_view(self):
-        top_frame = tk.Frame(self.frame_summary, bg="#0078D7", height=60)
+        top_frame = tk.Frame(self.frame_summary, bg="#59A4E2", height=60)
         top_frame.pack(fill="x")
-        tk.Label(top_frame, text="Financial Dashboard", bg="#0078D7", fg="white", font=("Segoe UI", 16, "bold")).pack(side="left", padx=20, pady=15)
+        tk.Label(top_frame, text="Financial Dashboard", bg="#59A4E2", fg="white", font=("Segoe UI", 16, "bold")).pack(side="left", padx=20, pady=15)
         
         tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg="white", font=("Segoe UI", 10)).pack(side="right", padx=20, pady=15)
 
         self.btn_pdf = tk.Button(top_frame, text="Export Report to PDF", command=self.export_pdf_report,
-                                 bg="#E74C3C", fg="white", font=("Segoe UI", 10, "bold"), cursor="hand2")
+                                 bg="#E78F3C", fg="white", font=("Segoe UI", 10, "bold"), cursor="hand2")
         self.btn_pdf.pack(side="right", padx=10, pady=15)
 
         content_frame = tk.Frame(self.frame_summary, padx=30, pady=30)
         content_frame.pack(fill="both", expand=True)
         columns = ("sub", "limit", "spent", "bal")
         self.tree_summary = ttk.Treeview(content_frame, columns=columns, show="headings")
-        self.tree_summary.heading("sub", text="Department") # Changed
+        self.tree_summary.heading("sub", text="Department")
         self.tree_summary.heading("limit", text="Approved Limit")
         self.tree_summary.heading("spent", text="Total Disbursed")
         self.tree_summary.heading("bal", text="Remaining Balance")
@@ -293,7 +303,7 @@ class App:
         self.tree_session.delete(selected[0])
         if not self.tree_session.get_children():
             self.sub_combo.config(state="readonly")
-            self.lbl_sub.config(text="Department:", fg="black") # Changed
+            self.lbl_sub.config(text="Department:", fg="black") 
             self.cancel_edit()
 
     def on_modify_context(self):
@@ -330,7 +340,7 @@ class App:
         date_obj = self.date_entry.get_date() 
 
         if not sub:
-            messagebox.showwarning("Error", "Select a Department") # Changed
+            messagebox.showwarning("Error", "Select a Department")
             return
         if not ppa:
             messagebox.showwarning("Error", "PPA Number is empty.")
@@ -360,16 +370,17 @@ class App:
         else:
             self.tree_session.insert("", 0, values=(sub, ppa, display_amt, display_date))
             self.sub_combo.config(state="disabled")
-            self.lbl_sub.config(text="Department (Locked for Session):", fg="gray") # Changed
+            self.lbl_sub.config(text="Department (Locked for Session):", fg="gray")
             self.ppa_var.set("") 
             self.amount_entry.delete(0, tk.END)
             self.lbl_amt_words.config(text="")
+            # Preview label clears automatically via variable trace
 
     def restart_session(self):
         for item in self.tree_session.get_children():
             self.tree_session.delete(item)
         self.sub_combo.config(state="readonly")
-        self.lbl_sub.config(text="Department:", fg="black") # Changed
+        self.lbl_sub.config(text="Department:", fg="black") 
         self.cancel_edit() 
         self.sub_var.set("")
         self.ppa_var.set("")
