@@ -9,8 +9,8 @@ from num2words import num2words
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Subsidiary Bookkeeper")
-        self.center_window(1000, 650) # Slightly wider for History
+        self.root.title("Department Bookkeeper") # Title updated
+        self.center_window(1000, 650) 
         
         self.system = BookkeepingSystem()
         self.is_session_saved = False
@@ -24,7 +24,6 @@ class App:
         self.container = tk.Frame(self.root)
         self.container.pack(fill="both", expand=True)
 
-        # 3 FRAMES NOW
         self.frame_entry = tk.Frame(self.container)
         self.frame_summary = tk.Frame(self.container)
         self.frame_history = tk.Frame(self.container)
@@ -32,7 +31,7 @@ class App:
         self.frame_entry.pack(fill="both", expand=True)
         self.setup_entry_view()
         self.setup_summary_view()
-        self.setup_history_view() # New View
+        self.setup_history_view()
 
     def center_window(self, width, height):
         screen_width = self.root.winfo_screenwidth()
@@ -79,8 +78,8 @@ class App:
                                 bg="#e0a800", fg="white", font=("Segoe UI", 9, "bold"), cursor="hand2")
         btn_restart.pack(side="right")
 
-        # Subsidiary
-        self.lbl_sub = tk.Label(left_panel, text="Subsidiary Company:", bg="#f4f4f4", font=("Segoe UI", 10))
+        # Department (Changed Label)
+        self.lbl_sub = tk.Label(left_panel, text="Department:", bg="#f4f4f4", font=("Segoe UI", 10))
         self.lbl_sub.pack(anchor="w")
         self.sub_var = tk.StringVar()
         self.sub_combo = ttk.Combobox(left_panel, textvariable=self.sub_var, state="readonly", font=("Segoe UI", 11))
@@ -93,14 +92,12 @@ class App:
         self.lbl_ppa = tk.Label(ppa_frame, text="PPA Number (0/13):", bg="#f4f4f4", font=("Segoe UI", 10))
         self.lbl_ppa.pack(anchor="w")
 
-        # Entry Field
         self.ppa_var = tk.StringVar()
         self.ppa_var.trace_add('write', self.on_ppa_change) 
         
         self.ppa_entry = tk.Entry(ppa_frame, textvariable=self.ppa_var, font=("Consolas", 14))
         self.ppa_entry.pack(fill="x", pady=(2, 0))
 
-        # Preview Label
         self.lbl_ppa_preview = tk.Label(ppa_frame, text="", bg="#f4f4f4", fg="#0078D7", 
                                         font=("Segoe UI", 16, "bold"))
         self.lbl_ppa_preview.pack(anchor="w")
@@ -111,7 +108,6 @@ class App:
         self.amount_entry = tk.Entry(left_panel, font=("Segoe UI", 11), validate="key", validatecommand=vcmd)
         self.amount_entry.pack(fill="x", pady=(5, 2))
 
-        # Words
         self.lbl_amt_words = tk.Label(left_panel, text="", bg="#f4f4f4", fg="#666", 
                                       font=("Segoe UI", 9, "italic"), wraplength=350, justify="left")
         self.lbl_amt_words.pack(anchor="w", pady=(0, 15))
@@ -132,7 +128,7 @@ class App:
         self.btn_cancel_edit = tk.Button(left_panel, text="Cancel Editing", command=self.cancel_edit,
                                          bg="gray", fg="black", font=("Segoe UI", 9))
 
-        # Buttons Grid for Navigation
+        # Nav
         nav_frame = tk.Frame(left_panel, bg="#f4f4f4")
         nav_frame.pack(side="bottom", anchor="w", pady=10, fill="x")
         
@@ -140,11 +136,9 @@ class App:
                                 bg="#555555", fg="white", font=("Segoe UI", 10), cursor="hand2")
         btn_records.pack(side="left", padx=(0, 5))
 
-        # NEW HISTORY BUTTON
         btn_hist = tk.Button(nav_frame, text="Search & History 🔍", command=self.show_history_screen,
                                 bg="#555555", fg="white", font=("Segoe UI", 10), cursor="hand2")
         btn_hist.pack(side="left")
-
 
         # --- RIGHT PANEL ---
         right_header = tk.Frame(right_panel, bg="white")
@@ -167,7 +161,7 @@ class App:
 
         columns = ("sub", "ppa", "amt", "date")
         self.tree_session = ttk.Treeview(right_panel, columns=columns, show="headings")
-        self.tree_session.heading("sub", text="Subsidiary")
+        self.tree_session.heading("sub", text="Department") # Changed
         self.tree_session.heading("ppa", text="PPA")
         self.tree_session.heading("amt", text="Amount")
         self.tree_session.heading("date", text="Date")
@@ -184,84 +178,95 @@ class App:
         self.context_menu.add_command(label="Modify Entry", command=self.on_modify_context)
         self.context_menu.add_command(label="Delete Entry", command=self.delete_selected_row)
 
-    # ==================== HISTORY VIEW (NEW) ====================
+    # ==================== HISTORY VIEW ====================
     def setup_history_view(self):
-        # Header
         top_frame = tk.Frame(self.frame_history, bg="#2C3E50", height=60)
         top_frame.pack(fill="x")
-        
         tk.Label(top_frame, text="Transaction History & Search", bg="#2C3E50", fg="white", font=("Segoe UI", 16, "bold")).pack(side="left", padx=20, pady=15)
         tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg="white", font=("Segoe UI", 10)).pack(side="right", padx=20, pady=15)
 
-        # Filter Frame
         filter_frame = tk.Frame(self.frame_history, bg="#ECF0F1", padx=20, pady=10)
         filter_frame.pack(fill="x")
-
-        # Company Filter
-        tk.Label(filter_frame, text="Filter Company:", bg="#ECF0F1").pack(side="left", padx=5)
+        tk.Label(filter_frame, text="Filter Department:", bg="#ECF0F1").pack(side="left", padx=5) # Changed
         self.hist_sub_var = tk.StringVar()
         self.hist_sub_combo = ttk.Combobox(filter_frame, textvariable=self.hist_sub_var, state="readonly", width=30)
-        # Add 'All Companies' option
-        subs = ["All Companies"] + self.system.get_subsidiaries()
+        # Changed Option:
+        subs = ["All Departments"] + self.system.get_subsidiaries()
         self.hist_sub_combo['values'] = subs
         self.hist_sub_combo.current(0)
         self.hist_sub_combo.pack(side="left", padx=5)
-
-        # Search PPA
         tk.Label(filter_frame, text="Search PPA:", bg="#ECF0F1").pack(side="left", padx=(20, 5))
         self.hist_ppa_var = tk.StringVar()
         tk.Entry(filter_frame, textvariable=self.hist_ppa_var, width=20).pack(side="left", padx=5)
-
-        # Search Button
         tk.Button(filter_frame, text="Search / Refresh", command=self.run_history_search,
                   bg="#0078D7", fg="white").pack(side="left", padx=20)
 
-        # Results Table
         content_frame = tk.Frame(self.frame_history, padx=20, pady=20)
         content_frame.pack(fill="both", expand=True)
-
         columns = ("sub", "ppa", "date", "amt")
         self.tree_history = ttk.Treeview(content_frame, columns=columns, show="headings")
-        self.tree_history.heading("sub", text="Subsidiary")
+        self.tree_history.heading("sub", text="Department") # Changed
         self.tree_history.heading("ppa", text="PPA Number")
         self.tree_history.heading("date", text="Date")
         self.tree_history.heading("amt", text="Amount")
-
         self.tree_history.column("sub", width=200)
         self.tree_history.column("ppa", width=150)
         self.tree_history.column("date", width=100)
         self.tree_history.column("amt", width=120, anchor="w")
-
-        # Scrollbar
         scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.tree_history.yview)
         self.tree_history.configure(yscroll=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.tree_history.pack(fill="both", expand=True)
 
     def run_history_search(self):
-        # 1. Clear old
-        for item in self.tree_history.get_children():
-            self.tree_history.delete(item)
-        
-        # 2. Get Filters
+        for item in self.tree_history.get_children(): self.tree_history.delete(item)
         sub = self.hist_sub_var.get()
         ppa = self.hist_ppa_var.get().strip()
-        
-        # 3. Get Data
         data = self.system.search_transactions(subsidiary=sub, ppa_text=ppa)
-        
-        # 4. Populate
         for row in data:
-            # row: (Sub, PPA, DateObject, Amt)
             s_sub, s_ppa, s_date, s_amt = row
-            
-            # Format
             fmt_date = s_date.strftime("%d-%m-%Y") if isinstance(s_date, datetime) else str(s_date)
             fmt_amt = self.format_indian_currency(s_amt)
-            
             self.tree_history.insert("", "end", values=(s_sub, s_ppa, fmt_date, fmt_amt))
 
-    # ==================== ENTRY LOGIC ====================
+    # ==================== SUMMARY VIEW ====================
+    def setup_summary_view(self):
+        top_frame = tk.Frame(self.frame_summary, bg="#0078D7", height=60)
+        top_frame.pack(fill="x")
+        tk.Label(top_frame, text="Financial Dashboard", bg="#0078D7", fg="white", font=("Segoe UI", 16, "bold")).pack(side="left", padx=20, pady=15)
+        
+        tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg="white", font=("Segoe UI", 10)).pack(side="right", padx=20, pady=15)
+
+        self.btn_pdf = tk.Button(top_frame, text="Export Report to PDF", command=self.export_pdf_report,
+                                 bg="#E74C3C", fg="white", font=("Segoe UI", 10, "bold"), cursor="hand2")
+        self.btn_pdf.pack(side="right", padx=10, pady=15)
+
+        content_frame = tk.Frame(self.frame_summary, padx=30, pady=30)
+        content_frame.pack(fill="both", expand=True)
+        columns = ("sub", "limit", "spent", "bal")
+        self.tree_summary = ttk.Treeview(content_frame, columns=columns, show="headings")
+        self.tree_summary.heading("sub", text="Department") # Changed
+        self.tree_summary.heading("limit", text="Approved Limit")
+        self.tree_summary.heading("spent", text="Total Disbursed")
+        self.tree_summary.heading("bal", text="Remaining Balance")
+        self.tree_summary.column("limit", anchor="w")
+        self.tree_summary.column("spent", anchor="w")
+        self.tree_summary.column("bal", anchor="w")
+        self.tree_summary.pack(fill="both", expand=True)
+
+    def export_pdf_report(self):
+        summary_data = self.system.get_summary_report()
+        if not summary_data:
+             messagebox.showinfo("Export", "No data available to export.")
+             return
+        success, result = self.system.create_dashboard_pdf(summary_data)
+        if success:
+            try: os.startfile(result)
+            except Exception as e: messagebox.showinfo("Saved", f"PDF saved at:\n{result}")
+        else:
+            messagebox.showerror("Error", result)
+
+    # ==================== COMMON LOGIC ====================
     def update_amount_words(self, event):
         val = self.amount_entry.get()
         if not val:
@@ -288,7 +293,7 @@ class App:
         self.tree_session.delete(selected[0])
         if not self.tree_session.get_children():
             self.sub_combo.config(state="readonly")
-            self.lbl_sub.config(text="Subsidiary Company:", fg="black")
+            self.lbl_sub.config(text="Department:", fg="black") # Changed
             self.cancel_edit()
 
     def on_modify_context(self):
@@ -325,7 +330,7 @@ class App:
         date_obj = self.date_entry.get_date() 
 
         if not sub:
-            messagebox.showwarning("Error", "Select a Subsidiary")
+            messagebox.showwarning("Error", "Select a Department") # Changed
             return
         if not ppa:
             messagebox.showwarning("Error", "PPA Number is empty.")
@@ -355,7 +360,7 @@ class App:
         else:
             self.tree_session.insert("", 0, values=(sub, ppa, display_amt, display_date))
             self.sub_combo.config(state="disabled")
-            self.lbl_sub.config(text="Subsidiary Company (Locked for Session):", fg="gray")
+            self.lbl_sub.config(text="Department (Locked for Session):", fg="gray") # Changed
             self.ppa_var.set("") 
             self.amount_entry.delete(0, tk.END)
             self.lbl_amt_words.config(text="")
@@ -364,7 +369,7 @@ class App:
         for item in self.tree_session.get_children():
             self.tree_session.delete(item)
         self.sub_combo.config(state="readonly")
-        self.lbl_sub.config(text="Subsidiary Company:", fg="black")
+        self.lbl_sub.config(text="Department:", fg="black") # Changed
         self.cancel_edit() 
         self.sub_var.set("")
         self.ppa_var.set("")
@@ -470,25 +475,7 @@ class App:
         self.frame_entry.pack_forget()
         self.frame_summary.pack_forget()
         self.frame_history.pack(fill="both", expand=True)
-        self.run_history_search() # Auto load all
-
-    def setup_summary_view(self):
-        top_frame = tk.Frame(self.frame_summary, bg="#0078D7", height=60)
-        top_frame.pack(fill="x")
-        tk.Label(top_frame, text="Financial Dashboard", bg="#0078D7", fg="white", font=("Segoe UI", 16, "bold")).pack(side="left", padx=20, pady=15)
-        tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg="white", font=("Segoe UI", 10)).pack(side="right", padx=20, pady=15)
-        content_frame = tk.Frame(self.frame_summary, padx=30, pady=30)
-        content_frame.pack(fill="both", expand=True)
-        columns = ("sub", "limit", "spent", "bal")
-        self.tree_summary = ttk.Treeview(content_frame, columns=columns, show="headings")
-        self.tree_summary.heading("sub", text="Subsidiary Company")
-        self.tree_summary.heading("limit", text="Approved Limit")
-        self.tree_summary.heading("spent", text="Total Disbursed")
-        self.tree_summary.heading("bal", text="Remaining Balance")
-        self.tree_summary.column("limit", anchor="w")
-        self.tree_summary.column("spent", anchor="w")
-        self.tree_summary.column("bal", anchor="w")
-        self.tree_summary.pack(fill="both", expand=True)
+        self.run_history_search() 
 
 if __name__ == "__main__":
     root = tk.Tk()

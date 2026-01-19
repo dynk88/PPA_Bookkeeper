@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side
-from doc_gen import generate_payment_advice
+from doc_gen import generate_payment_advice, generate_summary_pdf
 
 # CONSTANTS
 FILE_NAME = "data.xlsx"
@@ -19,6 +19,7 @@ class BookkeepingSystem:
             wb = openpyxl.Workbook()
             ws_limits = wb.active
             ws_limits.title = SHEET_LIMITS
+            # Note: We keep "Subsidiary" internal key for database compatibility
             ws_limits.append(["Subsidiary", "Approved_Limit"])
             wb.create_sheet(SHEET_TXN)
             wb.save(FILE_NAME)
@@ -68,7 +69,6 @@ class BookkeepingSystem:
         return 1
 
     def _fmt_money(self, value):
-        """Helper to format currency for error messages"""
         try:
             value = int(value)
         except: return str(value)
@@ -196,12 +196,7 @@ class BookkeepingSystem:
     def create_word_advice(self, subsidiary, date_str, transaction_list):
         return generate_payment_advice(subsidiary, date_str, transaction_list)
 
-    # --- NEW FUNCTION FOR SEARCHING ---
     def search_transactions(self, subsidiary=None, ppa_text=None):
-        """
-        Scans all columns in Transactions sheet.
-        Returns list of tuples: (Subsidiary, PPA, Date, Amount)
-        """
         try:
             wb = openpyxl.load_workbook(FILE_NAME, data_only=True)
             ws = wb[SHEET_TXN]
@@ -209,25 +204,21 @@ class BookkeepingSystem:
             return []
 
         results = []
-        
-        # Iterate over subsidiary columns (Steps of 3: 1, 4, 7...)
         for col in range(1, ws.max_column + 1, 3):
             sub_name = ws.cell(row=1, column=col).value
             if not sub_name: continue
             
-            # Filter by Subsidiary if requested
-            if subsidiary and subsidiary != "All Companies" and sub_name != subsidiary:
+            # UPDATED FILTER: Check for "All Departments"
+            if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary:
                 continue
                 
-            # Read rows
             for row in range(3, ws.max_row + 1):
                 ppa = ws.cell(row=row, column=col).value
                 date_val = ws.cell(row=row, column=col+1).value
                 amt = ws.cell(row=row, column=col+2).value
                 
-                if not ppa: continue # Empty row
+                if not ppa: continue 
                 
-                # Filter by PPA if requested
                 if ppa_text:
                     if str(ppa_text).upper() not in str(ppa).upper():
                         continue
@@ -235,3 +226,6 @@ class BookkeepingSystem:
                 results.append((sub_name, str(ppa), date_val, amt))
         
         return results
+    
+    def create_dashboard_pdf(self, summary_data):
+        return generate_summary_pdf(summary_data)
