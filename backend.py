@@ -4,37 +4,33 @@ from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side
 from doc_gen import generate_payment_advice, generate_summary_pdf
-
-# CONSTANTS
-FILE_NAME = "data.xlsx"
-SHEET_LIMITS = "Limits"
-SHEET_TXN = "Transactions"
+from config import Config  # IMPORT CONFIG
 
 class BookkeepingSystem:
     def __init__(self):
         self.ensure_file_exists()
 
     def ensure_file_exists(self):
-        if not os.path.exists(FILE_NAME):
+        if not os.path.exists(Config.DB_FILENAME):
             wb = openpyxl.Workbook()
             ws_limits = wb.active
-            ws_limits.title = SHEET_LIMITS
+            ws_limits.title = Config.SHEET_LIMITS
             # Note: We keep "Subsidiary" internal key for database compatibility
             ws_limits.append(["Subsidiary", "Approved_Limit"])
-            wb.create_sheet(SHEET_TXN)
-            wb.save(FILE_NAME)
+            wb.create_sheet(Config.SHEET_TXN)
+            wb.save(Config.DB_FILENAME)
             print("Created new database file.")
 
     def get_subsidiaries(self):
         try:
-            df = pd.read_excel(FILE_NAME, sheet_name=SHEET_LIMITS)
+            df = pd.read_excel(Config.DB_FILENAME, sheet_name=Config.SHEET_LIMITS)
             if df.empty: return []
             return df["Subsidiary"].dropna().unique().tolist()
         except: return []
 
     def get_limit_info(self, subsidiary):
         try:
-            df = pd.read_excel(FILE_NAME, sheet_name=SHEET_LIMITS)
+            df = pd.read_excel(Config.DB_FILENAME, sheet_name=Config.SHEET_LIMITS)
             row = df[df["Subsidiary"] == subsidiary]
             if row.empty: return 0
             return int(row.iloc[0]["Approved_Limit"])
@@ -84,8 +80,8 @@ class BookkeepingSystem:
 
     def save_batch(self, subsidiary, batch_list):
         try:
-            wb = openpyxl.load_workbook(FILE_NAME)
-            ws = wb[SHEET_TXN]
+            wb = openpyxl.load_workbook(Config.DB_FILENAME)
+            ws = wb[Config.SHEET_TXN]
         except Exception as e:
             return False, f"Error: Close Excel file! {e}"
 
@@ -152,7 +148,7 @@ class BookkeepingSystem:
             current_row += 1
 
         try:
-            wb.save(FILE_NAME)
+            wb.save(Config.DB_FILENAME)
         except PermissionError:
             return False, "Error: File is open. Close Excel and try again."
 
@@ -160,14 +156,14 @@ class BookkeepingSystem:
 
     def get_summary_report(self):
         try:
-            df_limits = pd.read_excel(FILE_NAME, sheet_name=SHEET_LIMITS)
+            df_limits = pd.read_excel(Config.DB_FILENAME, sheet_name=Config.SHEET_LIMITS)
         except: return []
         if df_limits.empty: return []
 
         summary_data = []
         try:
-            wb = openpyxl.load_workbook(FILE_NAME, data_only=True) 
-            ws = wb[SHEET_TXN]
+            wb = openpyxl.load_workbook(Config.DB_FILENAME, data_only=True) 
+            ws = wb[Config.SHEET_TXN]
         except: return []
 
         sub_col_map = {}
@@ -198,8 +194,8 @@ class BookkeepingSystem:
 
     def search_transactions(self, subsidiary=None, ppa_text=None):
         try:
-            wb = openpyxl.load_workbook(FILE_NAME, data_only=True)
-            ws = wb[SHEET_TXN]
+            wb = openpyxl.load_workbook(Config.DB_FILENAME, data_only=True)
+            ws = wb[Config.SHEET_TXN]
         except:
             return []
 
@@ -208,7 +204,6 @@ class BookkeepingSystem:
             sub_name = ws.cell(row=1, column=col).value
             if not sub_name: continue
             
-            # UPDATED FILTER: Check for "All Departments"
             if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary:
                 continue
                 

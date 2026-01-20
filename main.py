@@ -4,12 +4,13 @@ from tkcalendar import DateEntry
 import os 
 from datetime import datetime
 from backend import BookkeepingSystem
-from num2words import num2words 
+from num2words import num2words
+from config import Config # IMPORT CONFIG
 
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Department Bookkeeper") 
+        self.root.title(Config.APP_TITLE) 
         self.center_window(1000, 650) 
         
         self.system = BookkeepingSystem()
@@ -18,18 +19,16 @@ class App:
 
         # STYLING
         style = ttk.Style()
-        style.configure("Treeview.Heading", font=('Segoe UI', 10, 'bold'))
-        style.configure("Treeview", font=('Segoe UI', 10), rowheight=28)
+        style.configure("Treeview.Heading", font=Config.FONT_BODY_BOLD)
+        style.configure("Treeview", font=Config.FONT_BODY, rowheight=28)
         
         # --- FOOTER (Developed By) ---
-        # We pack this first with side="bottom" so it sticks to the bottom
         footer_frame = tk.Frame(self.root, bg="#f0f0f0", height=20)
         footer_frame.pack(side="bottom", fill="x")
         
-        lbl_dev = tk.Label(footer_frame, text="Developed by D.N", 
-                           font=("Segoe UI", 8), fg="gray", bg="#f0f0f0")
+        lbl_dev = tk.Label(footer_frame, text=Config.DEV_NAME, 
+                           font=Config.FONT_FOOTER, fg=Config.COLOR_TEXT_LIGHT, bg="#f0f0f0")
         lbl_dev.pack(side="right", padx=10, pady=2)
-        # -----------------------------
 
         # MAIN CONTAINER
         self.container = tk.Frame(self.root)
@@ -73,101 +72,102 @@ class App:
 
     # ==================== ENTRY VIEW ====================
     def setup_entry_view(self):
-        left_panel = tk.Frame(self.frame_entry, bg="#f4f4f4", padx=25, pady=25)
+        left_panel = tk.Frame(self.frame_entry, bg=Config.COLOR_BG_MAIN, padx=25, pady=25)
         left_panel.place(relx=0, rely=0, relwidth=0.45, relheight=1)
 
-        right_panel = tk.Frame(self.frame_entry, bg="white", padx=20, pady=20)
+        right_panel = tk.Frame(self.frame_entry, bg=Config.COLOR_BG_WHITE, padx=20, pady=20)
         right_panel.place(relx=0.45, rely=0, relwidth=0.55, relheight=1)
 
         # --- LEFT PANEL ---
-        header_frame = tk.Frame(left_panel, bg="#f4f4f4")
+        header_frame = tk.Frame(left_panel, bg=Config.COLOR_BG_MAIN)
         header_frame.pack(fill="x", pady=(0, 20))
         
-        tk.Label(header_frame, text="Transaction Form", font=("Segoe UI", 16, "bold"), bg="#f4f4f4").pack(side="left")
+        tk.Label(header_frame, text="Transaction Form", font=Config.FONT_HEADER, bg=Config.COLOR_BG_MAIN).pack(side="left")
         
         btn_restart = tk.Button(header_frame, text="⟳ Restart Session", command=self.restart_session,
-                                bg="#e0a800", fg="white", font=("Segoe UI", 9, "bold"), cursor="hand2")
+                                bg=Config.COLOR_WARNING, fg=Config.COLOR_BG_WHITE, font=Config.FONT_SMALL, cursor="hand2")
         btn_restart.pack(side="right")
 
         # Department
-        self.lbl_sub = tk.Label(left_panel, text="Department:", bg="#f4f4f4", font=("Segoe UI", 10))
+        self.lbl_sub = tk.Label(left_panel, text="Department:", bg=Config.COLOR_BG_MAIN, font=Config.FONT_BODY)
         self.lbl_sub.pack(anchor="w")
         self.sub_var = tk.StringVar()
-        self.sub_combo = ttk.Combobox(left_panel, textvariable=self.sub_var, state="readonly", font=("Segoe UI", 11))
+        self.sub_combo = ttk.Combobox(left_panel, textvariable=self.sub_var, state="readonly", font=Config.FONT_ENTRY)
         self.sub_combo['values'] = self.system.get_subsidiaries()
         self.sub_combo.pack(fill="x", pady=(5, 15))
 
         # PPA SECTION
-        ppa_frame = tk.Frame(left_panel, bg="#f4f4f4")
+        ppa_frame = tk.Frame(left_panel, bg=Config.COLOR_BG_MAIN)
         ppa_frame.pack(fill="x", pady=(5, 15))
-        self.lbl_ppa = tk.Label(ppa_frame, text="PPA Number (0/13):", bg="#f4f4f4", font=("Segoe UI", 10))
+        self.lbl_ppa = tk.Label(ppa_frame, text="PPA Number (0/13):", bg=Config.COLOR_BG_MAIN, font=Config.FONT_BODY)
         self.lbl_ppa.pack(anchor="w")
 
         self.ppa_var = tk.StringVar()
         self.ppa_var.trace_add('write', self.on_ppa_change) 
         
-        self.ppa_entry = tk.Entry(ppa_frame, textvariable=self.ppa_var, font=("Consolas", 14))
+        self.ppa_entry = tk.Entry(ppa_frame, textvariable=self.ppa_var, font=Config.FONT_MONO_LARGE)
         self.ppa_entry.pack(fill="x", pady=(2, 0))
 
-        self.lbl_ppa_preview = tk.Label(ppa_frame, text="", bg="#f4f4f4", fg="#0078D7", 
-                                        font=("Segoe UI", 16, "bold"))
+        self.lbl_ppa_preview = tk.Label(ppa_frame, text="", bg=Config.COLOR_BG_MAIN, fg=Config.COLOR_PRIMARY, 
+                                        font=Config.FONT_PREVIEW_LARGE)
         self.lbl_ppa_preview.pack(anchor="w")
 
         # Amount
-        tk.Label(left_panel, text="Amount (₹):", bg="#f4f4f4", font=("Segoe UI", 10)).pack(anchor="w")
+        tk.Label(left_panel, text="Amount (₹):", bg=Config.COLOR_BG_MAIN, font=Config.FONT_BODY).pack(anchor="w")
         vcmd = (self.root.register(self.validate_amount), '%P')
-        self.amount_entry = tk.Entry(left_panel, font=("Segoe UI", 11), validate="key", validatecommand=vcmd)
+        self.amount_entry = tk.Entry(left_panel, font=Config.FONT_ENTRY, validate="key", validatecommand=vcmd)
         self.amount_entry.pack(fill="x", pady=(5, 2))
 
-        self.lbl_amt_words = tk.Label(left_panel, text="", bg="#f4f4f4", fg="#666", 
-                                      font=("Segoe UI", 9, "italic"), wraplength=350, justify="left")
+        self.lbl_amt_words = tk.Label(left_panel, text="", bg=Config.COLOR_BG_MAIN, fg=Config.COLOR_SECONDARY, 
+                                      font=Config.FONT_SMALL_ITALIC, wraplength=350, justify="left")
         self.lbl_amt_words.pack(anchor="w", pady=(0, 15))
         self.amount_entry.bind("<KeyRelease>", self.update_amount_words)
 
         # Date
-        tk.Label(left_panel, text="Date:", bg="#f4f4f4", font=("Segoe UI", 10)).pack(anchor="w")
-        self.date_entry = DateEntry(left_panel, width=12, background='darkblue',
-                                    foreground='white', borderwidth=2, date_pattern='dd-mm-yyyy', font=("Segoe UI", 11))
+        tk.Label(left_panel, text="Date:", bg=Config.COLOR_BG_MAIN, font=Config.FONT_BODY).pack(anchor="w")
+        # Note: DateEntry styling is limited but we can set basic colors
+        self.date_entry = DateEntry(left_panel, width=12, background=Config.COLOR_PRIMARY,
+                                    foreground=Config.COLOR_BG_WHITE, borderwidth=2, date_pattern='dd-mm-yyyy', font=Config.FONT_ENTRY)
         self.date_entry.pack(fill="x", pady=(5, 25))
 
         # Submit
         self.btn_submit = tk.Button(left_panel, text="Submit PPA (To Preview)", command=self.submit_data, 
-                               bg="#0078D7", fg="white", font=("Segoe UI", 11, "bold"), height=2, cursor="hand2")
+                               bg=Config.COLOR_PRIMARY, fg=Config.COLOR_BG_WHITE, font=Config.FONT_SUBHEADER, height=2, cursor="hand2")
         self.btn_submit.pack(fill="x")
 
         # Cancel Edit
         self.btn_cancel_edit = tk.Button(left_panel, text="Cancel Editing", command=self.cancel_edit,
-                                         bg="gray", fg="black", font=("Segoe UI", 9))
+                                         bg=Config.COLOR_TEXT_LIGHT, fg=Config.COLOR_TEXT, font=Config.FONT_SMALL)
 
         # Nav
-        nav_frame = tk.Frame(left_panel, bg="#f4f4f4")
+        nav_frame = tk.Frame(left_panel, bg=Config.COLOR_BG_MAIN)
         nav_frame.pack(side="bottom", anchor="w", pady=10, fill="x")
         
         btn_records = tk.Button(nav_frame, text="See Records (Dashboard) →", command=self.show_summary_screen,
-                                bg="#555555", fg="white", font=("Segoe UI", 10), cursor="hand2")
+                                bg=Config.COLOR_SECONDARY, fg=Config.COLOR_BG_WHITE, font=Config.FONT_BODY, cursor="hand2")
         btn_records.pack(side="left", padx=(0, 5))
 
         btn_hist = tk.Button(nav_frame, text="Search & History 🔍", command=self.show_history_screen,
-                                bg="#555555", fg="white", font=("Segoe UI", 10), cursor="hand2")
+                                bg=Config.COLOR_SECONDARY, fg=Config.COLOR_BG_WHITE, font=Config.FONT_BODY, cursor="hand2")
         btn_hist.pack(side="left")
 
         # --- RIGHT PANEL ---
-        right_header = tk.Frame(right_panel, bg="white")
+        right_header = tk.Frame(right_panel, bg=Config.COLOR_BG_WHITE)
         right_header.pack(fill="x", pady=(0, 10))
         
-        tk.Label(right_header, text="Session Preview", font=("Segoe UI", 12, "bold"), bg="white").pack(side="left")
+        tk.Label(right_header, text="Session Preview", font=Config.FONT_SUBHEADER, bg=Config.COLOR_BG_WHITE).pack(side="left")
         tk.Label(right_panel, text="Tip: Right-click row to Edit or Delete", 
-                 font=("Segoe UI", 9, "italic"), fg="gray", bg="white").pack(anchor="w")
+                 font=Config.FONT_SMALL_ITALIC, fg=Config.COLOR_TEXT_LIGHT, bg=Config.COLOR_BG_WHITE).pack(anchor="w")
 
-        action_frame = tk.Frame(right_header, bg="white")
+        action_frame = tk.Frame(right_header, bg=Config.COLOR_BG_WHITE)
         action_frame.pack(side="right")
 
         self.btn_validate = tk.Button(action_frame, text="✓ Validate & Save", command=self.validate_data,
-                                bg="#d63384", fg="white", font=("Segoe UI", 9, "bold"), cursor="hand2")
+                                bg=Config.COLOR_ACCENT, fg=Config.COLOR_BG_WHITE, font=Config.FONT_SMALL, cursor="hand2")
         self.btn_validate.pack(side="left", padx=5)
 
         self.btn_export = tk.Button(action_frame, text="Export noting", command=self.export_word,
-                               bg="gray", fg="white", font=("Segoe UI", 9, "bold"), cursor="hand2", state="disabled")
+                               bg=Config.COLOR_TEXT_LIGHT, fg=Config.COLOR_BG_WHITE, font=Config.FONT_SMALL, cursor="hand2", state="disabled")
         self.btn_export.pack(side="left")
 
         columns = ("sub", "ppa", "amt", "date")
@@ -189,27 +189,34 @@ class App:
         self.context_menu.add_command(label="Modify Entry", command=self.on_modify_context)
         self.context_menu.add_command(label="Delete Entry", command=self.delete_selected_row)
 
+        # --- SESSION TOTAL FOOTER ---
+        total_frame = tk.Frame(right_panel, bg=Config.COLOR_BG_WHITE)
+        total_frame.pack(side="bottom", fill="x", pady=10)
+        self.lbl_session_total = tk.Label(total_frame, text="Session Total: ₹ 0", 
+                                          font=Config.FONT_SUBHEADER, fg=Config.COLOR_BG_HEADER, bg=Config.COLOR_BG_WHITE)
+        self.lbl_session_total.pack(side="right")
+
     # ==================== HISTORY VIEW ====================
     def setup_history_view(self):
-        top_frame = tk.Frame(self.frame_history, bg="#2C3E50", height=60)
+        top_frame = tk.Frame(self.frame_history, bg=Config.COLOR_BG_HEADER, height=60)
         top_frame.pack(fill="x")
-        tk.Label(top_frame, text="Transaction History & Search", bg="#2C3E50", fg="white", font=("Segoe UI", 16, "bold")).pack(side="left", padx=20, pady=15)
-        tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg="white", font=("Segoe UI", 10)).pack(side="right", padx=20, pady=15)
+        tk.Label(top_frame, text="Transaction History & Search", bg=Config.COLOR_BG_HEADER, fg=Config.COLOR_BG_WHITE, font=Config.FONT_HEADER).pack(side="left", padx=20, pady=15)
+        tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg=Config.COLOR_BG_WHITE, font=Config.FONT_BODY).pack(side="right", padx=20, pady=15)
 
-        filter_frame = tk.Frame(self.frame_history, bg="#ECF0F1", padx=20, pady=10)
+        filter_frame = tk.Frame(self.frame_history, bg=Config.COLOR_BG_MAIN, padx=20, pady=10)
         filter_frame.pack(fill="x")
-        tk.Label(filter_frame, text="Filter Department:", bg="#ECF0F1").pack(side="left", padx=5) 
+        tk.Label(filter_frame, text="Filter Department:", bg=Config.COLOR_BG_MAIN).pack(side="left", padx=5) 
         self.hist_sub_var = tk.StringVar()
         self.hist_sub_combo = ttk.Combobox(filter_frame, textvariable=self.hist_sub_var, state="readonly", width=30)
         subs = ["All Departments"] + self.system.get_subsidiaries()
         self.hist_sub_combo['values'] = subs
         self.hist_sub_combo.current(0)
         self.hist_sub_combo.pack(side="left", padx=5)
-        tk.Label(filter_frame, text="Search PPA:", bg="#ECF0F1").pack(side="left", padx=(20, 5))
+        tk.Label(filter_frame, text="Search PPA:", bg=Config.COLOR_BG_MAIN).pack(side="left", padx=(20, 5))
         self.hist_ppa_var = tk.StringVar()
         tk.Entry(filter_frame, textvariable=self.hist_ppa_var, width=20).pack(side="left", padx=5)
         tk.Button(filter_frame, text="Search / Refresh", command=self.run_history_search,
-                  bg="#0078D7", fg="white").pack(side="left", padx=20)
+                  bg=Config.COLOR_PRIMARY, fg=Config.COLOR_BG_WHITE).pack(side="left", padx=20)
 
         content_frame = tk.Frame(self.frame_history, padx=20, pady=20)
         content_frame.pack(fill="both", expand=True)
@@ -241,14 +248,14 @@ class App:
 
     # ==================== SUMMARY VIEW ====================
     def setup_summary_view(self):
-        top_frame = tk.Frame(self.frame_summary, bg="#59A4E2", height=60)
+        top_frame = tk.Frame(self.frame_summary, bg=Config.COLOR_PRIMARY, height=60)
         top_frame.pack(fill="x")
-        tk.Label(top_frame, text="Financial Dashboard", bg="#59A4E2", fg="white", font=("Segoe UI", 16, "bold")).pack(side="left", padx=20, pady=15)
+        tk.Label(top_frame, text="Financial Dashboard", bg=Config.COLOR_PRIMARY, fg=Config.COLOR_BG_WHITE, font=Config.FONT_HEADER).pack(side="left", padx=20, pady=15)
         
-        tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg="white", font=("Segoe UI", 10)).pack(side="right", padx=20, pady=15)
+        tk.Button(top_frame, text="← Back to Entry", command=self.show_entry_screen, bg=Config.COLOR_BG_WHITE, font=Config.FONT_BODY).pack(side="right", padx=20, pady=15)
 
         self.btn_pdf = tk.Button(top_frame, text="Export Report to PDF", command=self.export_pdf_report,
-                                 bg="#E78F3C", fg="white", font=("Segoe UI", 10, "bold"), cursor="hand2")
+                                 bg=Config.COLOR_DANGER, fg=Config.COLOR_BG_WHITE, font=Config.FONT_BODY_BOLD, cursor="hand2")
         self.btn_pdf.pack(side="right", padx=10, pady=15)
 
         content_frame = tk.Frame(self.frame_summary, padx=30, pady=30)
@@ -277,6 +284,13 @@ class App:
             messagebox.showerror("Error", result)
 
     # ==================== COMMON LOGIC ====================
+    def update_session_total(self):
+        total = 0
+        for child in self.tree_session.get_children():
+            val_str = self.tree_session.item(child)['values'][2] 
+            total += self.parse_currency(val_str)
+        self.lbl_session_total.config(text=f"Session Total: {self.format_indian_currency(total)}")
+
     def update_amount_words(self, event):
         val = self.amount_entry.get()
         if not val:
@@ -301,9 +315,10 @@ class App:
         selected = self.tree_session.selection()
         if not selected: return
         self.tree_session.delete(selected[0])
+        self.update_session_total() 
         if not self.tree_session.get_children():
             self.sub_combo.config(state="readonly")
-            self.lbl_sub.config(text="Department:", fg="black") 
+            self.lbl_sub.config(text="Department:", fg=Config.COLOR_TEXT) 
             self.cancel_edit()
 
     def on_modify_context(self):
@@ -322,12 +337,12 @@ class App:
         self.update_amount_words(None)
         self.date_entry.set_date(values[3])
         self.editing_item_iid = iid
-        self.btn_submit.config(text="Update Entry", bg="#E67E22") 
+        self.btn_submit.config(text="Update Entry", bg=Config.COLOR_WARNING) 
         self.btn_cancel_edit.pack(pady=5) 
 
     def cancel_edit(self):
         self.editing_item_iid = None
-        self.btn_submit.config(text="Submit PPA (To Preview)", bg="#0078D7")
+        self.btn_submit.config(text="Submit PPA (To Preview)", bg=Config.COLOR_PRIMARY)
         self.btn_cancel_edit.pack_forget()
         self.ppa_var.set("")
         self.amount_entry.delete(0, tk.END)
@@ -370,26 +385,28 @@ class App:
         else:
             self.tree_session.insert("", 0, values=(sub, ppa, display_amt, display_date))
             self.sub_combo.config(state="disabled")
-            self.lbl_sub.config(text="Department (Locked for Session):", fg="gray")
+            self.lbl_sub.config(text="Department (Locked for Session):", fg=Config.COLOR_TEXT_LIGHT)
             self.ppa_var.set("") 
             self.amount_entry.delete(0, tk.END)
             self.lbl_amt_words.config(text="")
-            # Preview label clears automatically via variable trace
+        
+        self.update_session_total() 
 
     def restart_session(self):
         for item in self.tree_session.get_children():
             self.tree_session.delete(item)
         self.sub_combo.config(state="readonly")
-        self.lbl_sub.config(text="Department:", fg="black") 
+        self.lbl_sub.config(text="Department:", fg=Config.COLOR_TEXT) 
         self.cancel_edit() 
         self.sub_var.set("")
         self.ppa_var.set("")
         self.amount_entry.delete(0, tk.END)
         self.lbl_amt_words.config(text="")
         self.is_session_saved = False
-        self.btn_submit.config(state="normal", bg="#0078D7")
-        self.btn_validate.config(state="normal", bg="#d63384")
-        self.btn_export.config(state="disabled", bg="gray")
+        self.btn_submit.config(state="normal", bg=Config.COLOR_PRIMARY)
+        self.btn_validate.config(state="normal", bg=Config.COLOR_ACCENT)
+        self.btn_export.config(state="disabled", bg=Config.COLOR_TEXT_LIGHT)
+        self.update_session_total() 
 
     def validate_data(self):
         children = self.tree_session.get_children()
@@ -410,10 +427,10 @@ class App:
         if success:
             messagebox.showinfo("Success", "Data validated and saved to Excel successfully.")
             self.is_session_saved = True
-            self.btn_submit.config(state="disabled", bg="gray")
-            self.btn_validate.config(state="disabled", bg="gray")
+            self.btn_submit.config(state="disabled", bg=Config.COLOR_TEXT_LIGHT)
+            self.btn_validate.config(state="disabled", bg=Config.COLOR_TEXT_LIGHT)
             if self.editing_item_iid: self.cancel_edit() 
-            self.btn_export.config(state="normal", bg="#28a745")
+            self.btn_export.config(state="normal", bg=Config.COLOR_SUCCESS)
         else:
             messagebox.showerror("Validation Failed", msg)
 
@@ -445,17 +462,17 @@ class App:
         is_alnum = upper_val.isalnum()
         
         if count > 0 and not is_alnum:
-            self.lbl_ppa.config(text="Error: Letters & Numbers only!", fg="red")
-            self.lbl_ppa_preview.config(fg="red")
+            self.lbl_ppa.config(text="Error: Letters & Numbers only!", fg=Config.COLOR_DANGER)
+            self.lbl_ppa_preview.config(fg=Config.COLOR_DANGER)
         elif count > 13:
-            self.lbl_ppa.config(text=f"PPA Number (Too Long! {count}/13):", fg="red")
-            self.lbl_ppa_preview.config(fg="red")
+            self.lbl_ppa.config(text=f"PPA Number (Too Long! {count}/13):", fg=Config.COLOR_DANGER)
+            self.lbl_ppa_preview.config(fg=Config.COLOR_DANGER)
         elif count == 13:
-            self.lbl_ppa.config(text=f"PPA Number (Perfect: 13):", fg="green")
-            self.lbl_ppa_preview.config(fg="green")
+            self.lbl_ppa.config(text=f"PPA Number (Perfect: 13):", fg=Config.COLOR_SUCCESS)
+            self.lbl_ppa_preview.config(fg=Config.COLOR_SUCCESS)
         else:
-            self.lbl_ppa.config(text=f"PPA Number ({count}/13 chars):", fg="black")
-            self.lbl_ppa_preview.config(fg="#0078D7")
+            self.lbl_ppa.config(text=f"PPA Number ({count}/13 chars):", fg=Config.COLOR_TEXT)
+            self.lbl_ppa_preview.config(fg=Config.COLOR_PRIMARY)
 
         spaced_text = " ".join(list(upper_val))
         self.lbl_ppa_preview.config(text=spaced_text)
