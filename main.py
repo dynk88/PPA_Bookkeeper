@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from backend import BookkeepingSystem
 from num2words import num2words
-from config import Config # IMPORT CONFIG
+from config import Config 
 
 class App:
     def __init__(self, root):
@@ -22,7 +22,7 @@ class App:
         style.configure("Treeview.Heading", font=Config.FONT_BODY_BOLD)
         style.configure("Treeview", font=Config.FONT_BODY, rowheight=28)
         
-        # --- FOOTER (Developed By) ---
+        # --- FOOTER ---
         footer_frame = tk.Frame(self.root, bg="#f0f0f0", height=20)
         footer_frame.pack(side="bottom", fill="x")
         
@@ -107,6 +107,10 @@ class App:
         
         self.ppa_entry = tk.Entry(ppa_frame, textvariable=self.ppa_var, font=Config.FONT_MONO_LARGE)
         self.ppa_entry.pack(fill="x", pady=(2, 0))
+        
+        # BINDINGS for PPA Styling (Reset color when user interacts)
+        self.ppa_entry.bind("<Key>", self.restore_ppa_style)
+        self.ppa_entry.bind("<Button-1>", self.restore_ppa_style)
 
         self.lbl_ppa_preview = tk.Label(ppa_frame, text="", bg=Config.COLOR_BG_MAIN, fg=Config.COLOR_PRIMARY, 
                                         font=Config.FONT_PREVIEW_LARGE)
@@ -118,14 +122,14 @@ class App:
         self.amount_entry = tk.Entry(left_panel, font=Config.FONT_ENTRY, validate="key", validatecommand=vcmd)
         self.amount_entry.pack(fill="x", pady=(5, 2))
 
-        self.lbl_amt_words = tk.Label(left_panel, text="", bg=Config.COLOR_BG_MAIN, fg=Config.COLOR_SECONDARY, 
-                                      font=Config.FONT_SMALL_ITALIC, wraplength=350, justify="left")
+        # Amount in Words (UPDATED STYLE)
+        self.lbl_amt_words = tk.Label(left_panel, text="", bg=Config.COLOR_BG_MAIN, fg=Config.COLOR_AMOUNT_PREVIEW, 
+                                      font=Config.FONT_BODY_BOLD, wraplength=350, justify="left")
         self.lbl_amt_words.pack(anchor="w", pady=(0, 15))
         self.amount_entry.bind("<KeyRelease>", self.update_amount_words)
 
         # Date
         tk.Label(left_panel, text="Date:", bg=Config.COLOR_BG_MAIN, font=Config.FONT_BODY).pack(anchor="w")
-        # Note: DateEntry styling is limited but we can set basic colors
         self.date_entry = DateEntry(left_panel, width=12, background=Config.COLOR_PRIMARY,
                                     foreground=Config.COLOR_BG_WHITE, borderwidth=2, date_pattern='dd-mm-yyyy', font=Config.FONT_ENTRY)
         self.date_entry.pack(fill="x", pady=(5, 25))
@@ -339,6 +343,8 @@ class App:
         self.editing_item_iid = iid
         self.btn_submit.config(text="Update Entry", bg=Config.COLOR_WARNING) 
         self.btn_cancel_edit.pack(pady=5) 
+        # Make PPA style normal for editing
+        self.restore_ppa_style(None)
 
     def cancel_edit(self):
         self.editing_item_iid = None
@@ -347,6 +353,11 @@ class App:
         self.ppa_var.set("")
         self.amount_entry.delete(0, tk.END)
         self.lbl_amt_words.config(text="")
+        self.restore_ppa_style(None)
+
+    def restore_ppa_style(self, event):
+        """Resets PPA text color to black"""
+        self.ppa_entry.config(fg=Config.COLOR_TEXT)
 
     def submit_data(self):
         sub = self.sub_var.get()
@@ -386,9 +397,17 @@ class App:
             self.tree_session.insert("", 0, values=(sub, ppa, display_amt, display_date))
             self.sub_combo.config(state="disabled")
             self.lbl_sub.config(text="Department (Locked for Session):", fg=Config.COLOR_TEXT_LIGHT)
-            self.ppa_var.set("") 
+            
+            # --- AUTO FILL LOGIC ---
+            # 1. Do not clear PPA
+            # 2. Clear amount and words
             self.amount_entry.delete(0, tk.END)
             self.lbl_amt_words.config(text="")
+            
+            # 3. Style PPA as "Pre-filled"
+            self.ppa_entry.config(fg=Config.COLOR_DIM_TEXT)
+            self.ppa_entry.focus_set()
+            self.ppa_entry.select_range(0, tk.END)
         
         self.update_session_total() 
 
@@ -399,9 +418,10 @@ class App:
         self.lbl_sub.config(text="Department:", fg=Config.COLOR_TEXT) 
         self.cancel_edit() 
         self.sub_var.set("")
-        self.ppa_var.set("")
+        self.ppa_var.set("") # Clear PPA on restart
         self.amount_entry.delete(0, tk.END)
         self.lbl_amt_words.config(text="")
+        self.restore_ppa_style(None)
         self.is_session_saved = False
         self.btn_submit.config(state="normal", bg=Config.COLOR_PRIMARY)
         self.btn_validate.config(state="normal", bg=Config.COLOR_ACCENT)
