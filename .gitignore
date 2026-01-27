@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 data.xlsx
 note.txt
+*.pdf
+Laji/
+Nikang/

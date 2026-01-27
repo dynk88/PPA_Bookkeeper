@@ -1,7 +1,7 @@
 class Config:
     # --- APP SETTINGS ---
     APP_TITLE = "Department Bookkeeper"
-    DEV_NAME = "Developed by Your Name"
+    DEV_NAME = "Developed by D. N"
     WINDOW_SIZE = "1000x650"
     
     # --- FILE PATHS ---
