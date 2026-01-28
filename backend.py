@@ -8,7 +8,8 @@ from config import Config
 
 class BookkeepingSystem:
     def __init__(self):
-        # Default active sheet is based on TODAY, but saving is dynamic
+        # Default active sheet is based on TODAY
+        self.active_sheet_name = self.get_sheet_name_for_date(datetime.now())
         self.ensure_file_exists()
 
     def get_sheet_name_for_date(self, date_obj):
@@ -29,22 +30,24 @@ class BookkeepingSystem:
     def ensure_file_exists(self):
         if not os.path.exists(Config.DB_FILENAME):
             wb = openpyxl.Workbook()
-            # Setup Limits
             ws_limits = wb.active
             ws_limits.title = Config.SHEET_LIMITS
             ws_limits.append(["Department", "Approved_Limit"]) 
             
-            # Setup Current FY Sheet (Default)
-            current_sheet = self.get_sheet_name_for_date(datetime.now())
-            wb.create_sheet(current_sheet)
+            wb.create_sheet(self.active_sheet_name)
             wb.save(Config.DB_FILENAME)
+        else:
+            # Check if active sheet exists
+            try:
+                wb = openpyxl.load_workbook(Config.DB_FILENAME)
+                if self.active_sheet_name not in wb.sheetnames:
+                    wb.create_sheet(self.active_sheet_name)
+                    wb.save(Config.DB_FILENAME)
+            except: pass
 
     def _ensure_fy_sheet_exists(self, wb, sheet_name):
-        """Creates the transaction sheet if it doesn't exist (Year Rollover)"""
         if sheet_name not in wb.sheetnames:
-            ws = wb.create_sheet(sheet_name)
-            # No headers needed because columns are dynamically created per department
-            return ws
+            return wb.create_sheet(sheet_name)
         return wb[sheet_name]
 
     def get_subsidiaries(self):
@@ -110,20 +113,13 @@ class BookkeepingSystem:
             formatted_remaining = digit + formatted_remaining
         return f"₹ {formatted_remaining},{last_three}"
 
-    # --- PPA SAVE (FIXED: Uses Batch Date for Sheet) ---
     def save_batch(self, subsidiary, batch_list):
         try:
             wb = openpyxl.load_workbook(Config.DB_FILENAME)
-            
-            # Determine Sheet Name based on the FIRST entry's date
-            # (Assumes all entries in a batch belong to same session/date roughly)
-            first_date = batch_list[0][1] # (ppa, date_obj, amt)
+            first_date = batch_list[0][1]
             target_sheet_name = self.get_sheet_name_for_date(first_date)
-            
             ws = self._ensure_fy_sheet_exists(wb, target_sheet_name)
-            
-        except Exception as e:
-            return False, f"Error: {e}"
+        except Exception as e: return False, f"Error: {e}"
 
         limit = self.get_limit_info(subsidiary)
         start_col = self._get_or_create_subsidiary_columns(wb, ws, subsidiary)
@@ -132,8 +128,6 @@ class BookkeepingSystem:
         
         current_spent = 0
         existing_ppas = []
-        
-        # Calculate Spent in THIS Financial Year
         for row in range(3, ws.max_row + 1):
             val_ppa = ws.cell(row=row, column=col_ppa).value
             val_amt = ws.cell(row=row, column=col_amt).value
@@ -144,7 +138,7 @@ class BookkeepingSystem:
         new_ppas = []
         for (ppa, _, amt) in batch_list:
             ppa = str(ppa)
-            if ppa in existing_ppas: return False, f"Error: PPA {ppa} already exists in {target_sheet_name}."
+            if ppa in existing_ppas: return False, f"Error: PPA {ppa} exists in {target_sheet_name}."
             if ppa in new_ppas: return False, f"Error: PPA {ppa} duplicated."
             new_ppas.append(ppa)
             batch_total += amt
@@ -152,8 +146,7 @@ class BookkeepingSystem:
         final_total = current_spent + batch_total
         if final_total > limit:
             remaining = limit - current_spent
-            msg = (f"Limit Exceeded for {target_sheet_name}\nApproved: {self._fmt_money(limit)}\n"
-                   f"Spent (This FY): {self._fmt_money(current_spent)}\n"
+            msg = (f"Limit Exceeded\nApproved: {self._fmt_money(limit)}\nSpent (FY): {self._fmt_money(current_spent)}\n"
                    f"Batch: {self._fmt_money(batch_total)}\nAvailable: {self._fmt_money(remaining)}")
             return False, msg
 
@@ -172,13 +165,10 @@ class BookkeepingSystem:
             a_cell.border = thin_border
             current_row += 1
 
-        try:
-            wb.save(Config.DB_FILENAME)
-        except PermissionError:
-            return False, "Error: File open."
+        try: wb.save(Config.DB_FILENAME)
+        except PermissionError: return False, "Error: File open."
         return True, f"Saved to {target_sheet_name}."
 
-    # --- ALLOCATION SAVE (FIXED: Headers) ---
     def save_allocation_batch(self, subsidiary, batch_list):
         try:
             wb = openpyxl.load_workbook(Config.DB_FILENAME)
@@ -199,62 +189,48 @@ class BookkeepingSystem:
         curr_limit_cell = ws.cell(row=target_row, column=2)
         current_limit = curr_limit_cell.value if curr_limit_cell.value else 0
         
-        # Start searching from Col 3 for empty slot
         current_col = 3
         while ws.cell(row=target_row, column=current_col).value is not None:
-            current_col += 2 # Skip Amount & Date columns
+            current_col += 2 
             
         total_added = 0
         for (_, date_obj, amt) in batch_list:
             total_added += amt
-            
-            # --- HEADER GENERATION LOGIC ---
-            # Calculate Allocation Number: (Col_Index - 1) / 2
-            # e.g., Col 3 -> 1st, Col 5 -> 2nd
             alloc_num = int((current_col - 1) / 2)
             
-            # Helper for suffix (st, nd, rd, th)
+            # Suffix logic
             if 11 <= (alloc_num % 100) <= 13: suffix = "th"
             else:
                 rem = alloc_num % 10
-                if rem == 1: suffix = "st"
-                elif rem == 2: suffix = "nd"
-                elif rem == 3: suffix = "rd"
-                else: suffix = "th"
+                suffix = {1:"st", 2:"nd", 3:"rd"}.get(rem, "th")
             
             header_title = f"{alloc_num}{suffix} allocation"
             header_date = f"Date_{alloc_num}"
             
-            # Write Headers if missing (Row 1)
             if ws.cell(row=1, column=current_col).value is None:
                 ws.cell(row=1, column=current_col, value=header_title).font = Font(bold=True)
                 ws.cell(row=1, column=current_col+1, value=header_date).font = Font(bold=True)
 
-            # Write Data
             ws.cell(row=target_row, column=current_col, value=amt)
             d_cell = ws.cell(row=target_row, column=current_col+1, value=date_obj)
             d_cell.number_format = 'DD-MM-YYYY'
-            
             current_col += 2
 
         curr_limit_cell.value = current_limit + total_added
 
-        try:
-            wb.save(Config.DB_FILENAME)
+        try: wb.save(Config.DB_FILENAME)
         except PermissionError: return False, "File open."
         return True, f"Allocated {self._fmt_money(total_added)}."
 
     def get_summary_report(self):
         try:
             df_limits = pd.read_excel(Config.DB_FILENAME, sheet_name=Config.SHEET_LIMITS)
-            # Default to TODAY's FY for dashboard
             active_sheet = self.get_sheet_name_for_date(datetime.now())
             wb = openpyxl.load_workbook(Config.DB_FILENAME, data_only=True) 
-            
             if active_sheet in wb.sheetnames:
                 ws = wb[active_sheet]
             else:
-                return [] # No data for this year yet
+                return []
         except: return []
 
         sub_col_map = {}
@@ -268,7 +244,6 @@ class BookkeepingSystem:
             limit = int(row["Approved_Limit"]) if pd.notna(row["Approved_Limit"]) else 0
             
             q1, q2, q3, q4, total_spent = 0, 0, 0, 0, 0
-            
             if sub_name in sub_col_map:
                 start_col = sub_col_map[sub_name]
                 col_date = start_col + 1
@@ -283,7 +258,6 @@ class BookkeepingSystem:
                         elif 7 <= m <= 9: q2 += amt
                         elif 10 <= m <= 12: q3 += amt
                         elif 1 <= m <= 3: q4 += amt
-            
             remaining = limit - total_spent
             summary_data.append((sub_name, limit, q1, q2, q3, q4, total_spent, remaining))
         return summary_data
@@ -291,37 +265,120 @@ class BookkeepingSystem:
     def create_word_advice(self, subsidiary, date_str, transaction_list):
         return generate_payment_advice(subsidiary, date_str, transaction_list)
 
-    def search_transactions(self, subsidiary=None, ppa_text=None, quarter=None):
-        try:
-            # Search CURRENT FY by default
-            active_sheet = self.get_sheet_name_for_date(datetime.now())
-            wb = openpyxl.load_workbook(Config.DB_FILENAME, data_only=True)
-            if active_sheet not in wb.sheetnames: return []
-            ws = wb[active_sheet]
-        except: return []
-
-        results = []
-        for col in range(1, ws.max_column + 1, 3):
-            sub_name = ws.cell(row=1, column=col).value
-            if not sub_name: continue
-            if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary: continue
-            for row in range(3, ws.max_row + 1):
-                ppa = ws.cell(row=row, column=col).value
-                date_val = ws.cell(row=row, column=col+1).value
-                amt = ws.cell(row=row, column=col+2).value
-                if not ppa: continue 
-                if ppa_text and str(ppa_text).upper() not in str(ppa).upper(): continue
-                if quarter and quarter != "All":
-                    if not isinstance(date_val, datetime): continue
-                    m = date_val.month
-                    row_q = ""
-                    if 4 <= m <= 6: row_q = "Q1"
-                    elif 7 <= m <= 9: row_q = "Q2"
-                    elif 10 <= m <= 12: row_q = "Q3"
-                    elif 1 <= m <= 3: row_q = "Q4"
-                    if row_q != quarter: continue
-                results.append((sub_name, str(ppa), date_val, amt))
-        return results
-    
     def create_dashboard_pdf(self, summary_data):
         return generate_summary_pdf(summary_data)
+
+    # --- UNIFIED LEDGER SEARCH ---
+    def search_transactions(self, subsidiary=None, ppa_text=None, quarter=None):
+        """
+        Merges PPAs (from Active Transactions Sheet) AND Allocations (from Limits Sheet)
+        """
+        results = []
+        
+        # 1. FETCH ALLOCATIONS (From Limits Sheet)
+        try:
+            wb = openpyxl.load_workbook(Config.DB_FILENAME, data_only=True)
+            ws_limits = wb[Config.SHEET_LIMITS]
+            
+            for row in range(2, ws_limits.max_row + 1):
+                sub_name = ws_limits.cell(row=row, column=1).value
+                if not sub_name: continue
+                
+                # Filter by Subsidiary
+                if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary:
+                    continue
+                
+                # Check Columns 3, 5, 7... for allocations
+                current_col = 3
+                while current_col <= ws_limits.max_column:
+                    amt = ws_limits.cell(row=row, column=current_col).value
+                    date_val = ws_limits.cell(row=row, column=current_col+1).value
+                    
+                    if isinstance(amt, (int, float)) and isinstance(date_val, datetime):
+                        # Filter by PPA text (Search "Allocation" or specific amount if needed)
+                        # We allow Allocations to appear if ppa_text is empty OR if user searches "Alloc"
+                        if ppa_text:
+                            if "ALLOC" not in ppa_text.upper():
+                                # Strict PPA search should skip allocations? 
+                                # Usually yes, unless user wants to see everything.
+                                # Let's skip allocation if user typed a specific PPA number
+                                pass 
+                        
+                        # Filter by Quarter
+                        if quarter and quarter != "All":
+                            m = date_val.month
+                            row_q = ""
+                            if 4 <= m <= 6: row_q = "Q1"
+                            elif 7 <= m <= 9: row_q = "Q2"
+                            elif 10 <= m <= 12: row_q = "Q3"
+                            elif 1 <= m <= 3: row_q = "Q4"
+                            if row_q != quarter: 
+                                current_col += 2
+                                continue
+
+                        # Determine Ordinal (1st, 2nd...)
+                        alloc_num = int((current_col - 1) / 2)
+                        ref_text = f"Allocation ({alloc_num})"
+                        
+                        results.append({
+                            "sub": sub_name,
+                            "ref": ref_text,
+                            "date": date_val,
+                            "amt": amt,
+                            "type": "ALLOC"
+                        })
+                    
+                    current_col += 2
+        except: pass
+
+        # 2. FETCH PPAs (From Transactions Sheet)
+        try:
+            active_sheet = self.get_sheet_name_for_date(datetime.now())
+            if active_sheet in wb.sheetnames:
+                ws_txn = wb[active_sheet]
+                
+                for col in range(1, ws_txn.max_column + 1, 3):
+                    sub_name = ws_txn.cell(row=1, column=col).value
+                    if not sub_name: continue
+                    
+                    if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary:
+                        continue
+                        
+                    for row in range(3, ws_txn.max_row + 1):
+                        ppa = ws_txn.cell(row=row, column=col).value
+                        date_val = ws_txn.cell(row=row, column=col+1).value
+                        amt = ws_txn.cell(row=row, column=col+2).value
+                        
+                        if not ppa: continue 
+                        
+                        if ppa_text and str(ppa_text).upper() not in str(ppa).upper(): continue
+                        
+                        if quarter and quarter != "All":
+                            if not isinstance(date_val, datetime): continue
+                            m = date_val.month
+                            row_q = ""
+                            if 4 <= m <= 6: row_q = "Q1"
+                            elif 7 <= m <= 9: row_q = "Q2"
+                            elif 10 <= m <= 12: row_q = "Q3"
+                            elif 1 <= m <= 3: row_q = "Q4"
+                            if row_q != quarter: continue
+                        
+                        results.append({
+                            "sub": sub_name,
+                            "ref": str(ppa),
+                            "date": date_val,
+                            "amt": amt,
+                            "type": "PPA"
+                        })
+        except: pass
+
+        # 3. MERGE & SORT
+        # Sort by Date Descending
+        results.sort(key=lambda x: x["date"], reverse=True)
+        
+        # Convert to tuple for UI
+        final_output = []
+        for item in results:
+            final_output.append((item["sub"], item["ref"], item["date"], item["amt"]))
+            
+        return final_output

@@ -23,7 +23,7 @@ class HistoryView(tk.Frame):
         self.combo = ttk.Combobox(f_frame, textvariable=self.dept_var, state="readonly", width=25)
         self.combo.pack(side="left", padx=5)
         
-        # NEW: Quarter Filter
+        # Quarter Filter
         tk.Label(f_frame, text="Quarter:", bg=Config.COLOR_BG_MAIN).pack(side="left", padx=(10, 0))
         self.q_var = tk.StringVar()
         self.q_combo = ttk.Combobox(f_frame, textvariable=self.q_var, state="readonly", width=10)
@@ -42,7 +42,7 @@ class HistoryView(tk.Frame):
         cols = ("sub", "ppa", "date", "amt")
         self.tree = ttk.Treeview(self, columns=cols, show="headings")
         self.tree.heading("sub", text="Department")
-        self.tree.heading("ppa", text="PPA")
+        self.tree.heading("ppa", text="Reference / Type") # UPDATED HEADER
         self.tree.heading("date", text="Date")
         self.tree.heading("amt", text="Amount")
         self.tree.column("sub", width=200)
