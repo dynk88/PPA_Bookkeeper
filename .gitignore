@@ -5,3 +5,6 @@ note.txt
 *.pdf
 Laji/
 Nikang/
+.vscode/
+build/
+dist/

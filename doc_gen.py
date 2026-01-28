@@ -3,7 +3,7 @@ from datetime import datetime
 from docx import Document
 from docx.shared import Pt
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape # CHANGED: Added landscape
+from reportlab.lib.pagesizes import A4, landscape 
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -78,48 +78,89 @@ def generate_payment_advice(subsidiary, date_str, transaction_list):
         return True, os.path.abspath(filename)
     except Exception as e: return False, str(e)
 
-# --- PDF GENERATION (UPDATED FOR LANDSCAPE) ---
+# --- PDF GENERATION (UPDATED) ---
 def generate_summary_pdf(data_list):
     filename = f"Financial_Report_{datetime.now().strftime('%d-%m-%Y')}.pdf"
     
     try:
-        # CHANGED: Use landscape(A4)
-        doc = SimpleDocTemplate(filename, pagesize=landscape(A4))
+        # 1. Setup A4 Landscape
+        doc = SimpleDocTemplate(filename, pagesize=landscape(A4), 
+                                leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
         elements = []
         styles = getSampleStyleSheet()
         
-        title_style = ParagraphStyle('CT', parent=styles['Heading1'], fontSize=18, alignment=TA_CENTER, textColor=colors.black, spaceAfter=20)
-        elements.append(Paragraph("Financial Status Report (Quarterly)", title_style))
+        # 2. Title
+        title_style = ParagraphStyle('CT', parent=styles['Heading1'], fontSize=16, alignment=TA_CENTER, textColor=colors.black, spaceAfter=15)
+        elements.append(Paragraph("Financial Status Report (Running Balance)", title_style))
         
         date_str = datetime.now().strftime("%d-%m-%Y %H:%M %p")
         elements.append(Paragraph(f"Generated on: {date_str}", styles['Normal']))
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 15))
 
-        # UPDATED COLUMNS
-        headers = ['Department', 'Approved Limit', 'Q1 (Apr-Jun)', 'Q2 (Jul-Sep)', 'Q3 (Oct-Dec)', 'Q4 (Jan-Mar)', 'Total Sanctioned', 'Balance']
-        table_data = [headers]
+        # 3. Headers (2 Rows)
+        # CHANGED: "Allocation Amount" -> "Previous Balance"
+        row1 = [
+            "Department", 
+            "Previous\nBalance", 
+            "Quarter 1", "", "", 
+            "Quarter 2", "", "", 
+            "Quarter 3", "", "", 
+            "Quarter 4", "", ""
+        ]
         
+        row2 = [
+            "", "", 
+            "Addl\nAlloc", "Expenditure", "Qtr ending\nBalance",
+            "Addl\nAlloc", "Expenditure", "Qtr ending\nBalance",
+            "Addl\nAlloc", "Expenditure", "Qtr ending\nBalance",
+            "Addl\nAlloc", "Expenditure", "Qtr ending\nBalance"
+        ]
+
+        table_data = [row1, row2]
+        
+        # 4. Data Rows
         for row in data_list:
-            # row: (Sub, Limit, Q1, Q2, Q3, Q4, Total, Bal)
             clean_row = [row[0]] # Name
-            # Format numbers
             for val in row[1:]:
-                clean_row.append(_fmt_rupee(val).replace("₹", "Rs. "))
+                txt = _fmt_rupee(val).replace("₹", "").strip() 
+                clean_row.append(txt)
             table_data.append(clean_row)
 
-        # ADJUST WIDTHS FOR LANDSCAPE (Total width ~800)
-        # Dept gets 180, Numbers get ~85 each
-        col_widths = [180, 85, 85, 85, 85, 85, 95, 95]
+        # 5. Column Widths
+        cw_dept = 140
+        cw_op = 60
+        cw_num = 50
+        col_widths = [cw_dept, cw_op] + [cw_num]*12
         
-        t = Table(table_data, colWidths=col_widths)
+        t = Table(table_data, colWidths=col_widths, repeatRows=2)
+        
+        # 6. Styling
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9), # Slightly smaller font
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('PADDING', (0, 0), (-1, -1), 4),
+            ('SPAN', (0,0), (0,1)), # Department
+            ('SPAN', (1,0), (1,1)), # Previous Balance
+            ('SPAN', (2,0), (4,0)), # Quarter 1
+            ('SPAN', (5,0), (7,0)), # Quarter 2
+            ('SPAN', (8,0), (10,0)), # Quarter 3
+            ('SPAN', (11,0), (13,0)), # Quarter 4
+            
+            ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
+            ('ALIGN', (0,0), (-1,1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,1), 'MIDDLE'),
+            ('BACKGROUND', (0,0), (-1,1), colors.lightgrey),
+            ('FONTSIZE', (0,0), (-1,1), 8),
+            
+            ('FONTNAME', (0,2), (0,-1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,2), (-1,-1), 7),
+            ('ALIGN', (0,2), (0,-1), 'LEFT'),
+            ('ALIGN', (1,2), (-1,-1), 'CENTER'),
+            
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.black),
+            
+            ('TOPPADDING', (0,0), (-1,-1), 2),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
+            ('LEFTPADDING', (0,0), (-1,-1), 2),
+            ('RIGHTPADDING', (0,0), (-1,-1), 2),
         ]))
         
         elements.append(t)

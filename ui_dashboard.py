@@ -47,8 +47,12 @@ class DashboardView(tk.Frame):
             self.tree.insert("", "end", values=fmt_row)
 
     def export_pdf(self):
-        data = self.controller.system.get_summary_report()
-        if not data: return
+        # CHANGED: Now fetching detailed data specifically for the PDF
+        data = self.controller.system.get_detailed_report_data()
+        if not data: 
+            messagebox.showinfo("Info", "No data available to export.")
+            return
+            
         ok, res = self.controller.system.create_dashboard_pdf(data)
         if ok: os.startfile(res)
         else: messagebox.showerror("Error", res)
