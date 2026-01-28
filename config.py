@@ -1,13 +1,14 @@
 class Config:
     # --- APP SETTINGS ---
     APP_TITLE = "Department Bookkeeper"
-    DEV_NAME = "Developed by D. N"
-    WINDOW_SIZE = "1000x650"
+    DEV_NAME = "Developed by DNikang"
+    WINDOW_SIZE = "1050x650" # Slightly wider
     
     # --- FILE PATHS ---
     DB_FILENAME = "data.xlsx"
     SHEET_LIMITS = "Limits"
-    SHEET_TXN = "Transactions"
+    # SHEET_TXN removed. It is now dynamic based on date.
+    TXN_PREFIX = "Transactions_" 
 
     # --- COLORS (THEME) ---
     COLOR_PRIMARY = "#0078D7"       # Main Blue
@@ -17,9 +18,10 @@ class Config:
     COLOR_WARNING = "#e0a800"       # Orange/Yellow
     COLOR_DANGER = "#E74C3C"        # Red
     
-    # NEW COLORS
-    COLOR_DIM_TEXT = "#A0A0A0"      # Lighter grey for auto-filled PPA
-    COLOR_AMOUNT_PREVIEW = "#008080" # Teal/SeaGreen for Amount Words
+    COLOR_ALLOC_MODE = "#663399"    # RebeccaPurple (For Allocation Toggle)
+    
+    COLOR_DIM_TEXT = "#A0A0A0"      
+    COLOR_AMOUNT_PREVIEW = "#008080" 
     
     COLOR_BG_MAIN = "#f4f4f4"       
     COLOR_BG_WHITE = "white"        
