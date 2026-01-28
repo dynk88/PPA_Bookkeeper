@@ -32,12 +32,13 @@ class BookkeepingSystem:
             wb = openpyxl.Workbook()
             ws_limits = wb.active
             ws_limits.title = Config.SHEET_LIMITS
-            # CHANGED: Renamed Approved_Limit to Previous_balance
+            # Defines the column for Opening Balance / Previous Balance
             ws_limits.append(["Department", "Previous_balance"]) 
             
             wb.create_sheet(self.active_sheet_name)
             wb.save(Config.DB_FILENAME)
         else:
+            # Check if active sheet exists
             try:
                 wb = openpyxl.load_workbook(Config.DB_FILENAME)
                 if self.active_sheet_name not in wb.sheetnames:
@@ -121,7 +122,9 @@ class BookkeepingSystem:
             ws = self._ensure_fy_sheet_exists(wb, target_sheet_name)
         except Exception as e: return False, f"Error: {e}"
 
+        # Get Limit info for check
         limit = self.get_limit_info(subsidiary)
+        
         start_col = self._get_or_create_subsidiary_columns(wb, ws, subsidiary)
         col_ppa = start_col
         col_amt = start_col + 2
@@ -144,8 +147,7 @@ class BookkeepingSystem:
             batch_total += amt
             
         final_total = current_spent + batch_total
-        # Note: Limit check is less strict here now that we have "Previous_balance"
-        # but logic remains: Total Spent vs (Column 2 Limit). 
+        # Basic limit check against Column 2 (Previous Balance + Allocations)
         if final_total > limit:
             remaining = limit - current_spent
             msg = (f"Limit Exceeded\nApproved: {self._fmt_money(limit)}\nSpent (FY): {self._fmt_money(current_spent)}\n"
@@ -218,11 +220,8 @@ class BookkeepingSystem:
             d_cell.number_format = 'DD-MM-YYYY'
             current_col += 2
 
-        # Note: We are updating Column 2 with *New Total*? 
-        # No, if Column 2 is "Previous Balance", we probably shouldn't auto-update it 
-        # with new allocations unless the user intended that. 
-        # But to keep existing behavior: The system sums allocations into Column 2 for "Limit Check".
-        # We will keep this behavior for now so "Limit Check" works, but in PDF we separate them.
+        # Update Column 2 to reflect total available limit (Previous Balance + Allocations)
+        # This ensures the "Limit Check" in save_batch works correctly.
         curr_limit_cell.value = current_limit + total_added
 
         try: wb.save(Config.DB_FILENAME)
@@ -230,6 +229,9 @@ class BookkeepingSystem:
         return True, f"Allocated {self._fmt_money(total_added)}."
 
     def get_summary_report(self):
+        """
+        Logic for the UI Dashboard (Simple View)
+        """
         try:
             df_limits = pd.read_excel(Config.DB_FILENAME, sheet_name=Config.SHEET_LIMITS)
             active_sheet = self.get_sheet_name_for_date(datetime.now())
@@ -249,7 +251,7 @@ class BookkeepingSystem:
         for index, row in df_limits.iterrows():
             sub_name = row["Department"] if "Department" in row else row["Subsidiary"]
             
-            # CHANGED: Handle renaming of column in existing files vs new files
+            # Legacy support: Check for "Previous_balance" OR "Approved_Limit"
             if "Previous_balance" in row:
                 limit_val = row["Previous_balance"]
             elif "Approved_Limit" in row:
@@ -278,62 +280,81 @@ class BookkeepingSystem:
             summary_data.append((sub_name, limit, q1, q2, q3, q4, total_spent, remaining))
         return summary_data
 
-    # --- NEW FUNCTION FOR DETAILED QUARTERLY PDF ---
+    # --- UPDATED: DETAILED QUARTERLY PDF DATA ---
     def get_detailed_report_data(self):
         """
-        Calculates opening balance (Column 2 + pre-April allocations) and quarterly running balances.
+        Calculates Net Opening Balance (Column 2 + Past Allocations - Past Expenditures) 
+        and Quarterly Running Balances for the current Financial Year.
+        Scans ALL transaction sheets for accurate historical spending.
         """
         try:
             wb = openpyxl.load_workbook(Config.DB_FILENAME, data_only=True)
             ws_limits = wb[Config.SHEET_LIMITS]
         except: return []
         
-        # Calculate current Financial Year Start
+        # 1. Determine Financial Year Start
         now = datetime.now()
         start_year = now.year if now.month >= 4 else now.year - 1
         fy_start = datetime(start_year, 4, 1)
 
-        # 1. Fetch Expenditures (Q1, Q2, Q3, Q4) per Dept
-        exp_map = {}
-        active_sheet_name = self.get_sheet_name_for_date(now)
+        # 2. Scan ALL Transaction Sheets for Expenditures
+        # We need two buckets:
+        # A. Historical Spent (Before FY Start) -> To subtract from Opening Balance
+        # B. Current FY Spent (Q1-Q4) -> To show in quarterly columns
         
-        if active_sheet_name in wb.sheetnames:
-            ws_txn = wb[active_sheet_name]
-            dept_cols = {}
-            for col in range(1, ws_txn.max_column + 1):
-                val = ws_txn.cell(row=1, column=col).value
-                if val: dept_cols[col] = val
-            
-            for col, dept_name in dept_cols.items():
-                if dept_name not in exp_map: exp_map[dept_name] = {'q1':0, 'q2':0, 'q3':0, 'q4':0}
-                col_date = col + 1
-                col_amt = col + 2
-                for r in range(3, ws_txn.max_row + 1):
-                    d_val = ws_txn.cell(row=r, column=col_date).value
-                    a_val = ws_txn.cell(row=r, column=col_amt).value
-                    if isinstance(d_val, datetime) and isinstance(a_val, (int, float)):
-                        m = d_val.month
-                        if 4 <= m <= 6: exp_map[dept_name]['q1'] += a_val
-                        elif 7 <= m <= 9: exp_map[dept_name]['q2'] += a_val
-                        elif 10 <= m <= 12: exp_map[dept_name]['q3'] += a_val
-                        elif 1 <= m <= 3: exp_map[dept_name]['q4'] += a_val
+        historical_spent_map = {} # dept -> total_past_spent
+        current_fy_exp_map = {}   # dept -> {'q1':0, ...}
 
-        # 2. Process Allocations
+        for sheet_name in wb.sheetnames:
+            if sheet_name.startswith(Config.TXN_PREFIX):
+                ws_txn = wb[sheet_name]
+                
+                # Get Column Mapping for this sheet
+                dept_cols = {}
+                for col in range(1, ws_txn.max_column + 1):
+                    val = ws_txn.cell(row=1, column=col).value
+                    if val: dept_cols[col] = val
+                
+                # Iterate Rows
+                for col, dept_name in dept_cols.items():
+                    # Init maps if needed
+                    if dept_name not in historical_spent_map: historical_spent_map[dept_name] = 0
+                    if dept_name not in current_fy_exp_map: current_fy_exp_map[dept_name] = {'q1':0, 'q2':0, 'q3':0, 'q4':0}
+                    
+                    col_date = col + 1
+                    col_amt = col + 2
+                    
+                    for r in range(3, ws_txn.max_row + 1):
+                        d_val = ws_txn.cell(row=r, column=col_date).value
+                        a_val = ws_txn.cell(row=r, column=col_amt).value
+                        
+                        if isinstance(d_val, datetime) and isinstance(a_val, (int, float)):
+                            if d_val < fy_start:
+                                # HISTORICAL: Spent in previous years
+                                historical_spent_map[dept_name] += a_val
+                            else:
+                                # CURRENT FY: Categorize into quarters
+                                m = d_val.month
+                                if 4 <= m <= 6: current_fy_exp_map[dept_name]['q1'] += a_val
+                                elif 7 <= m <= 9: current_fy_exp_map[dept_name]['q2'] += a_val
+                                elif 10 <= m <= 12: current_fy_exp_map[dept_name]['q3'] += a_val
+                                elif 1 <= m <= 3: current_fy_exp_map[dept_name]['q4'] += a_val
+
+        # 3. Process Allocations & Calculate Final Balances
         detailed_data = []
         
         for r in range(2, ws_limits.max_row + 1):
             sub_name = ws_limits.cell(row=r, column=1).value
             if not sub_name: continue
             
-            # --- CHANGED START ---
-            # Initialize with "Previous Balance" from Column 2
+            # A. Base Opening (From Column 2 "Previous_balance")
             col2_val = ws_limits.cell(row=r, column=2).value
-            opening_alloc = int(col2_val) if isinstance(col2_val, (int, float)) else 0
-            # --- CHANGED END ---
+            base_opening = int(col2_val) if isinstance(col2_val, (int, float)) else 0
             
+            # B. Add Historical Allocations
+            historical_alloc_added = 0
             q_alloc = {'q1':0, 'q2':0, 'q3':0, 'q4':0}
             
-            # Scan limit columns (Col 3, 5, 7...)
             curr_col = 3
             while curr_col <= ws_limits.max_column:
                 amt = ws_limits.cell(row=r, column=curr_col).value
@@ -342,26 +363,32 @@ class BookkeepingSystem:
                 if isinstance(amt, (int, float)):
                     if isinstance(dt, datetime):
                         if dt < fy_start:
-                            # Add historical allocations to opening balance
-                            opening_alloc += amt
+                            # Allocations made before this FY start
+                            historical_alloc_added += amt
                         else:
+                            # Current FY Allocations
                             m = dt.month
                             if 4 <= m <= 6: q_alloc['q1'] += amt
                             elif 7 <= m <= 9: q_alloc['q2'] += amt
                             elif 10 <= m <= 12: q_alloc['q3'] += amt
                             elif 1 <= m <= 3: q_alloc['q4'] += amt
                     else:
-                        # Legacy/No date -> Opening
-                        opening_alloc += amt
+                        # No date -> Treat as historical
+                        historical_alloc_added += amt
                 curr_col += 2
 
-            # 3. Calculate Running Balances
-            my_exp = exp_map.get(sub_name, {'q1':0, 'q2':0, 'q3':0, 'q4':0})
+            # C. Calculate Net Opening Balance
+            # Formula: (Base + Old Allocations) - (Old Expenditures)
+            past_spent = historical_spent_map.get(sub_name, 0)
+            net_opening_balance = (base_opening + historical_alloc_added) - past_spent
+
+            # D. Calculate Current FY Running Balances
+            my_exp = current_fy_exp_map.get(sub_name, {'q1':0, 'q2':0, 'q3':0, 'q4':0})
             
             # Q1
             q1_add = q_alloc['q1']
             q1_exp = my_exp['q1']
-            q1_bal = (opening_alloc + q1_add) - q1_exp
+            q1_bal = (net_opening_balance + q1_add) - q1_exp
             
             # Q2
             q2_add = q_alloc['q2']
@@ -379,7 +406,7 @@ class BookkeepingSystem:
             q4_bal = (q3_bal + q4_add) - q4_exp
             
             row_tuple = (
-                sub_name, opening_alloc,
+                sub_name, net_opening_balance,
                 q1_add, q1_exp, q1_bal,
                 q2_add, q2_exp, q2_bal,
                 q3_add, q3_exp, q3_bal,
@@ -395,23 +422,38 @@ class BookkeepingSystem:
     def create_dashboard_pdf(self, summary_data):
         return generate_summary_pdf(summary_data)
 
+    # --- UNIFIED LEDGER SEARCH ---
     def search_transactions(self, subsidiary=None, ppa_text=None, quarter=None):
+        """
+        Merges PPAs (from Active Transactions Sheet) AND Allocations (from Limits Sheet)
+        """
         results = []
+        
+        # 1. FETCH ALLOCATIONS (From Limits Sheet)
         try:
             wb = openpyxl.load_workbook(Config.DB_FILENAME, data_only=True)
             ws_limits = wb[Config.SHEET_LIMITS]
+            
             for row in range(2, ws_limits.max_row + 1):
                 sub_name = ws_limits.cell(row=row, column=1).value
                 if not sub_name: continue
+                
+                # Filter by Subsidiary
                 if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary:
                     continue
+                
+                # Check Columns 3, 5, 7... for allocations
                 current_col = 3
                 while current_col <= ws_limits.max_column:
                     amt = ws_limits.cell(row=row, column=current_col).value
                     date_val = ws_limits.cell(row=row, column=current_col+1).value
+                    
                     if isinstance(amt, (int, float)) and isinstance(date_val, datetime):
                         if ppa_text:
-                            if "ALLOC" not in ppa_text.upper(): pass 
+                            if "ALLOC" not in ppa_text.upper():
+                                pass 
+                        
+                        # Filter by Quarter
                         if quarter and quarter != "All":
                             m = date_val.month
                             row_q = ""
@@ -422,26 +464,43 @@ class BookkeepingSystem:
                             if row_q != quarter: 
                                 current_col += 2
                                 continue
+
                         alloc_num = int((current_col - 1) / 2)
                         ref_text = f"Allocation ({alloc_num})"
-                        results.append({"sub": sub_name, "ref": ref_text, "date": date_val, "amt": amt, "type": "ALLOC"})
+                        
+                        results.append({
+                            "sub": sub_name,
+                            "ref": ref_text,
+                            "date": date_val,
+                            "amt": amt,
+                            "type": "ALLOC"
+                        })
+                    
                     current_col += 2
         except: pass
 
+        # 2. FETCH PPAs (From Transactions Sheet)
         try:
             active_sheet = self.get_sheet_name_for_date(datetime.now())
             if active_sheet in wb.sheetnames:
                 ws_txn = wb[active_sheet]
+                
                 for col in range(1, ws_txn.max_column + 1, 3):
                     sub_name = ws_txn.cell(row=1, column=col).value
                     if not sub_name: continue
-                    if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary: continue
+                    
+                    if subsidiary and subsidiary != "All Departments" and sub_name != subsidiary:
+                        continue
+                        
                     for row in range(3, ws_txn.max_row + 1):
                         ppa = ws_txn.cell(row=row, column=col).value
                         date_val = ws_txn.cell(row=row, column=col+1).value
                         amt = ws_txn.cell(row=row, column=col+2).value
+                        
                         if not ppa: continue 
+                        
                         if ppa_text and str(ppa_text).upper() not in str(ppa).upper(): continue
+                        
                         if quarter and quarter != "All":
                             if not isinstance(date_val, datetime): continue
                             m = date_val.month
@@ -451,10 +510,21 @@ class BookkeepingSystem:
                             elif 10 <= m <= 12: row_q = "Q3"
                             elif 1 <= m <= 3: row_q = "Q4"
                             if row_q != quarter: continue
-                        results.append({"sub": sub_name, "ref": str(ppa), "date": date_val, "amt": amt, "type": "PPA"})
+                        
+                        results.append({
+                            "sub": sub_name,
+                            "ref": str(ppa),
+                            "date": date_val,
+                            "amt": amt,
+                            "type": "PPA"
+                        })
         except: pass
+
+        # 3. MERGE & SORT
         results.sort(key=lambda x: x["date"], reverse=True)
+        
         final_output = []
         for item in results:
             final_output.append((item["sub"], item["ref"], item["date"], item["amt"]))
+            
         return final_output
